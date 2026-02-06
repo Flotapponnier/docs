@@ -74,9 +74,31 @@
       },
       {
         "tab": "WebSocket API (Test)",
-        "asyncapi": {
-          "source": "asyncapi.yaml"
-        }
+        "groups": [
+          {
+            "group": "API Reference",
+            "asyncapi": {
+              "source": "asyncapi.yaml"
+            }
+          },
+          {
+            "group": "Guides & Examples",
+            "pages": [
+              "wss/fast-trades",
+              "wss/ohlcv-stream",
+              "wss/position-stream",
+              "wss/positions-stream",
+              "wss/price-feed",
+              "wss/market-details",
+              "wss/token-details",
+              "wss/holders-stream",
+              "wss/funding-stream",
+              "wss/pulse-stream-v2",
+              "wss/pulse-stream-v2-pool-based",
+              "wss/multi-events-stream"
+            ]
+          }
+        ]
       }
     ],
     "global": {
