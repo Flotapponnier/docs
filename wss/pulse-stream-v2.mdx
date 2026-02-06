@@ -1,0 +1,1696 @@
+---
+title: "Pulse Stream V2"
+asyncapi: "asyncapi.yaml pulseV2"
+description: "Advanced WebSocket stream for real-time token monitoring with multiple views and payload-based architecture"
+---
+
+<Tip>
+  **Filter Reference & System Metadata**: For complete filter documentation including all available fields, operators, and examples, see [Filter Details](/indexing-stream/stream/websocket/filters-details). All available factory names and pool types can be found at: https://api.mobula.io/api/1/system-metadata
+</Tip>
+
+<Tip> 
+  **Pool-Based Version Available**: The Pool-Based version for pool statistics is available here: [Pulse Stream V2 Pool-Based](/indexing-stream/stream/websocket/pulse-stream-v2-pool-based)
+</Tip>
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Real-time vs HTTP
+
+<CardGroup>
+  <Card title="🔗 GET Method" icon="link" href="/rest-api-reference/endpoint/pulse-get">
+    **Available in HTTP queries**
+    
+    Use the same filtering system in HTTP GET requests for simple queries.
+  </Card>
+
+  <Card title="📝 POST Method" icon="code" href="/rest-api-reference/endpoint/pulse-post">
+    **Available in HTTP queries**
+    
+    Use the same filtering system in HTTP POST requests for advanced configurations.
+  </Card>
+
+</CardGroup>
+
+## Overview
+
+Pulse Stream V2 Token-Based introduces a new payload-based architecture that allows you to manage multiple views simultaneously with enhanced control over token data flow and view management. This version focuses on token statistics and analytics rather than pool-based data.
+
+## Key Features
+
+- **Token-Based Analytics**: Subscribe to token statistics and real-time data
+- **Multiple Views**: Subscribe to multiple custom views simultaneously
+- **Payload-based Architecture**: Each view receives its own payload with view-specific data
+- **View Management**: Pause/unpause individual views without disconnecting
+- **Enhanced Filtering**: Advanced filtering capabilities with real-time token updates
+- **Personalized IDs**: Track multiple client sessions with custom identifiers
+- **Asset Mode**: Focused on token statistics rather than pool data
+
+## Endpoint Details
+
+- URL: wss://api.mobula.io
+- Message format: JSON string
+- Architecture: Payload-based with view management
+- Mode: Token-based (assetMode: true)
+
+## Basic Usage
+
+### Default Model Configuration (Token-Based)
+
+The simplest way to get started is using the default model in asset mode, which automatically generates three predefined views for token analytics:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "model": "default",
+    "assetMode": true,
+    "chainId": ["evm:8453", "solana:solana"],
+    "poolTypes": ["moonshot-evm", "pumpfun"],
+    "compressed": false
+  }
+}
+```
+
+This configuration automatically creates three token-focused views:
+
+1. **`new`** - New tokens not yet bonded
+   - Filters: `bonded: false`, `source: { not: null }`
+   - Sort: `created_at` descending
+   - Limit: 50 tokens
+
+2. **`bonding`** - Tokens in bonding phase
+   - Filters: `bonding_percentage: { lt: 100 }`, `volume_1h: { gte: 10 }`, `bonded: false`
+   - Sort: `bonding_percentage` descending
+   - Limit: 50 tokens
+
+3. **`bonded`** - Fully bonded tokens
+   - Filters: `bonded: true`
+   - Sort: `bonded_at` descending
+   - Limit: 50 tokens
+
+### Custom Views Configuration (Token-Based)
+
+For more control over token analytics, you can define custom views:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "assetMode": true,
+    "compressed": false,
+    "views": [
+      {
+        "name": "high-volume-tokens",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 50,
+        "filters": {
+          "volume_1h": { "gte": 1000 },
+          "market_cap": { "gte": 10000 }
+        }
+      },
+      {
+        "name": "trending-tokens",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "price_change_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "price_change_1h": { "gte": 10 },
+          "holders_count": { "gte": 100 }
+        }
+      }
+    ]
+  }
+}
+```
+
+## Token Data Model
+
+<Warning>
+**Important - Filter vs Response Naming:**
+- **Filters**: Use snake_case names matching Prisma schema (e.g., `top_10_holdings_percentage`, `holders_count`, `bonding_percentage`)
+- **Response Payload**: Uses camelCase in token object (e.g., `token.holdersCount`, `token.top10HoldingsPercentage`, `token.createdAt`)
+
+**Recent Data Model Changes:**
+- Holdings fields are in token object with "Percentage" suffix (e.g., `token.top10HoldingsPercentage`)
+- New trader category fields: `freshTradersHoldingsPercentage`, `smartTradersHoldingsPercentage`
+- New trader count fields: `insiders_count`, `bundlers_count`, `snipers_count`, `fresh_traders_count`, `pro_traders_count`, `smart_traders_count`
+- New trader buys tracking: `fresh_traders_buys`, `pro_traders_buys`, `smart_traders_buys`
+</Warning>
+
+### TokenDataSchema Structure
+
+The Token-Based mode provides access to comprehensive token statistics following the `TokenDataSchema` structure:
+
+```typescript
+interface TokenDataSchema {
+  // Token Information
+  token: TokenData;
+  
+  // Timestamps
+  created_at: Date | null;
+  latest_trade_date: Date | null;
+  
+  // Current Price
+  latest_price: number;
+  
+  // Price Changes
+  price_change_1min: number;
+  price_change_5min: number;
+  price_change_1h: number;
+  price_change_4h: number;
+  price_change_6h: number;
+  price_change_12h: number;
+  price_change_24h: number;
+  
+  // Historical Prices
+  price_1min_ago: number;
+  price_5min_ago: number;
+  price_1h_ago: number;
+  price_4h_ago: number;
+  price_6h_ago: number;
+  price_12h_ago: number;
+  price_24h_ago: number;
+  
+  // Market Data
+  market_cap: number;
+  latest_market_cap: number;
+  
+  // Volume Data
+  volume_1min: number;
+  volume_5min: number;
+  volume_15min: number;
+  volume_1h: number;
+  volume_4h: number;
+  volume_6h: number;
+  volume_12h: number;
+  volume_24h: number;
+  
+  // Volume Buy/Sell Data
+  volume_buy_1min: number;
+  volume_buy_5min: number;
+  volume_buy_15min: number;
+  volume_buy_1h: number;
+  volume_buy_4h: number;
+  volume_buy_6h: number;
+  volume_buy_12h: number;
+  volume_buy_24h: number;
+  volume_sell_1min: number;
+  volume_sell_5min: number;
+  volume_sell_15min: number;
+  volume_sell_1h: number;
+  volume_sell_4h: number;
+  volume_sell_6h: number;
+  volume_sell_12h: number;
+  volume_sell_24h: number;
+  
+  // Trading Activity
+  trades_1min: number;
+  trades_5min: number;
+  trades_15min: number;
+  trades_1h: number;
+  trades_4h: number;
+  trades_6h: number;
+  trades_12h: number;
+  trades_24h: number;
+  
+  // Buy/Sell Breakdown
+  buys_1min: number;
+  buys_5min: number;
+  buys_15min: number;
+  buys_1h: number;
+  buys_4h: number;
+  buys_6h: number;
+  buys_12h: number;
+  buys_24h: number;
+  
+  sells_1min: number;
+  sells_5min: number;
+  sells_15min: number;
+  sells_1h: number;
+  sells_4h: number;
+  sells_6h: number;
+  sells_12h: number;
+  sells_24h: number;
+  
+  // Unique Participants
+  buyers_1min: number;
+  buyers_5min: number;
+  buyers_15min: number;
+  buyers_1h: number;
+  buyers_4h: number;
+  buyers_6h: number;
+  buyers_12h: number;
+  buyers_24h: number;
+  
+  sellers_1min: number;
+  sellers_5min: number;
+  sellers_15min: number;
+  sellers_1h: number;
+  sellers_4h: number;
+  sellers_6h: number;
+  sellers_12h: number;
+  sellers_24h: number;
+  
+  // Traders (Unique participants who both bought and sold)
+  traders_1min: number;
+  traders_5min: number;
+  traders_15min: number;
+  traders_1h: number;
+  traders_4h: number;
+  traders_6h: number;
+  traders_12h: number;
+  traders_24h: number;
+  
+  // Fees Paid
+  fees_paid_1min: number;
+  fees_paid_5min: number;
+  fees_paid_15min: number;
+  fees_paid_1h: number;
+  fees_paid_4h: number;
+  fees_paid_6h: number;
+  fees_paid_12h: number;
+  fees_paid_24h: number;
+  totalFeesPaidUSD: number;
+  
+  // Organic Trading Data (Excluding Bot Activity)
+  organic_trades_1min?: number;
+  organic_trades_5min?: number;
+  organic_trades_15min?: number;
+  organic_trades_1h?: number;
+  organic_trades_4h?: number;
+  organic_trades_6h?: number;
+  organic_trades_12h?: number;
+  organic_trades_24h?: number;
+  
+  organic_volume_1min?: number;
+  organic_volume_5min?: number;
+  organic_volume_15min?: number;
+  organic_volume_1h?: number;
+  organic_volume_4h?: number;
+  organic_volume_6h?: number;
+  organic_volume_12h?: number;
+  organic_volume_24h?: number;
+  
+  organic_buys_1min?: number;
+  organic_buys_5min?: number;
+  organic_buys_15min?: number;
+  organic_buys_1h?: number;
+  organic_buys_4h?: number;
+  organic_buys_6h?: number;
+  organic_buys_12h?: number;
+  organic_buys_24h?: number;
+  
+  organic_sells_1min?: number;
+  organic_sells_5min?: number;
+  organic_sells_15min?: number;
+  organic_sells_1h?: number;
+  organic_sells_4h?: number;
+  organic_sells_6h?: number;
+  organic_sells_12h?: number;
+  organic_sells_24h?: number;
+  
+  organic_buyers_1min?: number;
+  organic_buyers_5min?: number;
+  organic_buyers_15min?: number;
+  organic_buyers_1h?: number;
+  organic_buyers_4h?: number;
+  organic_buyers_6h?: number;
+  organic_buyers_12h?: number;
+  organic_buyers_24h?: number;
+  
+  organic_sellers_1min?: number;
+  organic_sellers_5min?: number;
+  organic_sellers_15min?: number;
+  organic_sellers_1h?: number;
+  organic_sellers_4h?: number;
+  organic_sellers_6h?: number;
+  organic_sellers_12h?: number;
+  organic_sellers_24h?: number;
+  
+  organic_traders_1min?: number;
+  organic_traders_5min?: number;
+  organic_traders_15min?: number;
+  organic_traders_1h?: number;
+  organic_traders_4h?: number;
+  organic_traders_6h?: number;
+  organic_traders_12h?: number;
+  organic_traders_24h?: number;
+  
+  organic_volume_buy_1min?: number;
+  organic_volume_buy_5min?: number;
+  organic_volume_buy_15min?: number;
+  organic_volume_buy_1h?: number;
+  organic_volume_buy_4h?: number;
+  organic_volume_buy_6h?: number;
+  organic_volume_buy_12h?: number;
+  organic_volume_buy_24h?: number;
+  
+  organic_volume_sell_1min?: number;
+  organic_volume_sell_5min?: number;
+  organic_volume_sell_15min?: number;
+  organic_volume_sell_1h?: number;
+  organic_volume_sell_4h?: number;
+  organic_volume_sell_6h?: number;
+  organic_volume_sell_12h?: number;
+  organic_volume_sell_24h?: number;
+  
+  // Social & Metadata
+  description: string | null;
+  socials: {
+    twitter: string | null;
+    website: string | null;
+    telegram: string | null;
+    others: Record<string, unknown> | null;
+    uri: string | undefined;
+  };
+  
+  // Security Analysis
+  security: SecurityFlags | null;
+  
+  // Additional Metadata (Root Level)
+  bonded_at: string | null;
+  twitterReusesCount: number;
+  twitterRenameCount: number;
+  twitterRenameHistory?: Array<{
+    username: string;
+    last_checked: string;
+  }>;
+  deployerMigrationsCount: number;
+  dexscreenerListed: boolean | null;
+  dexscreenerHeader: string | null;
+  dexscreenerAdPaid: boolean | null;
+  
+  // Holders List
+  holders_list: Array<{
+    address: string;
+    balance: number;
+    nativeBalance: number;
+    balanceUsd: number;
+    boughtAmount: number;
+    soldAmount: number;
+    pnl: number;
+  }>;
+}
+
+interface TokenData {
+  // Basic Token Information
+  address: string;
+  chainId: string;
+  symbol: string | null;
+  name: string | null;
+  decimals: number;
+  id?: number | null;
+  
+  // Pricing Data
+  price: number;
+  priceToken: number;
+  priceTokenString: string;
+  approximateReserveUSD: number;
+  approximateReserveTokenRaw: string;
+  approximateReserveToken: number;
+  
+  // Supply & Market Cap
+  totalSupply: number;
+  circulatingSupply: number;
+  marketCap?: number;
+  marketCapDiluted?: number;
+  
+  // Visual & Exchange Data
+  logo: string | null;
+  originLogoUrl: string | null;
+  exchange: {
+    name: string;
+    logo: string;
+  };
+  
+  // Factory & Source Information
+  factory?: string | null;
+  source: string | null;
+  
+  // Liquidity & Bonding
+  liquidity: number;
+  liquidityMax?: number;
+  bonded?: boolean;
+  bondingPercentage?: number;
+  preBondingFactory?: string;
+  poolAddress?: string;
+  
+  // Blockchain & Type
+  blockchain: string;
+  type: string;
+  
+  // Timestamps & Deployer
+  createdAt: Date | null;
+  bonded_at: string | null;
+  deployer: string | null;
+
+  // ATH/ATL
+  ath: number;
+  atl: number;
+  athDate: string | null;
+  atlDate: string | null;
+  
+  // Holders Count
+  holdersCount: number;
+  
+  // Holdings Analysis (Percentage Values)
+  top10HoldingsPercentage?: number;
+  top50HoldingsPercentage?: number;
+  top100HoldingsPercentage?: number;
+  top200HoldingsPercentage?: number;
+  devHoldingsPercentage?: number;
+  insidersHoldingsPercentage?: number;
+  bundlersHoldingsPercentage?: number;
+  snipersHoldingsPercentage?: number;
+  proTradersHoldingsPercentage?: number;
+  freshTradersHoldingsPercentage?: number;
+  smartTradersHoldingsPercentage?: number;
+  
+  // Trader Categories Count
+  insidersCount: number;
+  bundlersCount: number;
+  snipersCount: number;
+  freshTradersCount: number;
+  proTradersCount: number;
+  smartTradersCount: number;
+  
+  // Trader Categories Buys
+  freshTradersBuys: number;
+  proTradersBuys: number;
+  smartTradersBuys: number;
+}
+```
+
+### Available Token Statistics
+
+The Token-Based mode provides access to comprehensive token statistics from the `TokensStatsRealTime` schema:
+
+#### Price Data
+- `latest_price`: Current token price
+- `price_1min_ago`, `price_5min_ago`, `price_1h_ago`, `price_4h_ago`, `price_6h_ago`, `price_12h_ago`, `price_24h_ago`: Historical prices
+- `price_change_1min`, `price_change_5min`, `price_change_1h`, `price_change_4h`, `price_change_6h`, `price_change_12h`, `price_change_24h`: Price changes
+
+#### Market Data
+- `market_cap`: Current market capitalization
+- `latest_market_cap`: Latest market cap calculation
+- `liquidity`: Available liquidity (from token object)
+
+#### Volume & Trading Data
+- `volume_1min`, `volume_5min`, `volume_15min`, `volume_1h`, `volume_4h`, `volume_6h`, `volume_12h`, `volume_24h`: Volume metrics
+- `volume_buy_1min` through `volume_buy_24h`: Buy volume metrics
+- `volume_sell_1min` through `volume_sell_24h`: Sell volume metrics
+- `trades_1min` through `trades_24h`: Trade count metrics
+- `buys_1min` through `buys_24h`: Buy transaction counts
+- `sells_1min` through `sells_24h`: Sell transaction counts
+
+#### Participant Analytics
+- `buyers_1min` through `buyers_24h`: Unique buyer counts
+- `sellers_1min` through `sellers_24h`: Unique seller counts
+- `traders_1min` through `traders_24h`: Unique trader counts
+- `fees_paid_1min` through `fees_paid_24h`: Fees paid metrics
+
+#### Organic Trading Data (Excluding Bot Activity)
+The organic metrics provide cleaner data by filtering out bot activity and MEV transactions:
+
+**Organic Volume Metrics:**
+- `organic_volume_1min`, `organic_volume_5min`, `organic_volume_15min`, `organic_volume_1h`, `organic_volume_4h`, `organic_volume_6h`, `organic_volume_12h`, `organic_volume_24h`: Total organic volume
+- `organic_volume_buy_1min` through `organic_volume_buy_24h`: Organic buy volume
+- `organic_volume_sell_1min` through `organic_volume_sell_24h`: Organic sell volume
+
+**Organic Trading Activity:**
+- `organic_trades_1min` through `organic_trades_24h`: Organic trade counts
+- `organic_buys_1min` through `organic_buys_24h`: Organic buy transaction counts
+- `organic_sells_1min` through `organic_sells_24h`: Organic sell transaction counts
+
+**Organic Participants:**
+- `organic_buyers_1min` through `organic_buyers_24h`: Unique organic buyer counts
+- `organic_sellers_1min` through `organic_sellers_24h`: Unique organic seller counts  
+- `organic_traders_1min` through `organic_traders_24h`: Unique organic trader counts
+
+#### Token Information
+
+<Note>
+**Filter Field Names** (use these for filtering):
+- `token_symbol`, `token_name`, `pool_address`, `dexscreener_listed`
+
+**Response Field Names** (in token object):
+- `symbol`, `name`, `poolAddress`, `dexscreenerListed`
+</Note>
+
+**Response Fields:**
+- `source`: Token source/factory (from token.source)
+- `factory`: Factory address (from token.factory)
+- `poolAddress`: Associated pool address (from token.poolAddress)
+- `deployer`: Token deployer address (from token.deployer)
+- `symbol`: Token symbol (from token.symbol)
+- `name`: Token name (from token.name)
+- `holdersCount`: Number of token holders (from token.holdersCount)
+- `dexscreenerListed`: Whether listed on DexScreener
+
+#### Social & Security Data
+- `twitter`: Twitter handle
+- `telegram`: Telegram link
+- `website`: Website URL
+- `others`: Other social links
+- `security`: Security analysis data (JSON object with nested fields)
+  - `security.buyTax`: Buy tax percentage (string, e.g., "0.0000")
+  - `security.sellTax`: Sell tax percentage (string, e.g., "5.0000")
+  - `security.isBlacklisted`: Whether token has blacklist functionality (boolean)
+  - `security.balanceMutable`: Whether balances can be modified (boolean)
+  - `security.noMintAuthority`: Whether mint authority is revoked (boolean, Solana)
+  - `security.transferPausable`: Whether transfers can be paused (boolean)
+- `twitterRenameCount`: Twitter rename count
+- `twitterRenameHistory`: Twitter rename history
+
+#### Bonding & Migration Data
+- `bonded`: Whether token is bonded (from token.bonded)
+- `bondingPercentage`: Bonding curve completion percentage (from token.bondingPercentage)
+- `bonded_at`: Bonding completion timestamp (at root level and in token object, null when not bonded)
+- `liquidityMax`: Maximum liquidity reached (from token.liquidityMax)
+
+#### Holdings Analysis
+
+<Note>
+**Filter vs Response Format**:
+- **For Filtering**: Use snake_case with "_percentage" suffix (e.g., `top_10_holdings_percentage`, `dev_holdings_percentage`)
+- **In Response**: Fields in token object with "Percentage" suffix in camelCase (e.g., `token.top10HoldingsPercentage`, `token.devHoldingsPercentage`)
+</Note>
+
+**Response Fields (in token object):**
+- `top10HoldingsPercentage`: Top 10 holders percentage
+- `top50HoldingsPercentage`: Top 50 holders percentage
+- `top100HoldingsPercentage`: Top 100 holders percentage
+- `top200HoldingsPercentage`: Top 200 holders percentage
+- `devHoldingsPercentage`: Developer holdings percentage
+- `insidersHoldingsPercentage`: Insider holdings percentage
+- `bundlersHoldingsPercentage`: Bundler holdings percentage
+- `snipersHoldingsPercentage`: Sniper holdings percentage
+- `proTradersHoldingsPercentage`: Professional trader holdings percentage
+- `freshTradersHoldingsPercentage`: Fresh trader holdings percentage
+- `smartTradersHoldingsPercentage`: Smart trader holdings percentage
+
+#### Enhanced Liquidity & Pool Data
+- `liquidityMax`: Maximum liquidity across all pools for the token
+- `preBondingFactory`: Factory address before bonding completion
+- `poolAddress`: Primary pool address (highest volume pool)
+
+#### Timestamps
+- `latest_trade_date`: Last trade timestamp
+- `created_at`: Token creation timestamp
+- `bonded_at`: Bonding completion timestamp
+- `migrated_at`: Migration timestamp
+
+### Available Filter Fields
+
+<Note>
+For a complete and detailed list of all available filter fields, operators, and examples, please refer to the [Filter Details Documentation](/indexing-stream/stream/websocket/filters-details).
+</Note>
+
+The Token-Based mode provides access to comprehensive filtering on all fields from the `TokensStatsRealTime` schema, including:
+
+- **Price & Market Data**: `latest_price`, `market_cap`, `holders_count`, `liquidity`, etc.
+- **Volume & Trading Data**: All volume, trades, buys, and sells metrics across multiple timeframes
+- **Organic Trading Data**: Clean metrics excluding bot activity
+- **Holdings Analysis**: Concentration metrics for different holder categories
+- **Trader Categories**: Counts and analytics for different trader types
+- **Bonding & Migration Data**: Bonding status, percentages, and timestamps
+- **Social & Metadata**: Social links, DexScreener status, deployer info
+- **Security Analysis**: Filter by security fields like `security.buyTax`, `security.sellTax`, `security.isBlacklisted`, `security.noMintAuthority`, etc.
+
+<CardGroup cols={2}>
+  <Card title="📖 Complete Filter Reference" icon="book" href="/indexing-stream/stream/websocket/filters-details">
+    View all available filters with examples and operators
+  </Card>
+  
+  <Card title="🔍 Custom Filters" icon="filter" href="/indexing-stream/stream/websocket/filters-details#custom-filter-fields-asset-mode">
+    Learn about keywords, patterns, and exclusion filters
+  </Card>
+</CardGroup>
+
+## Advanced Token Filtering
+
+<CardGroup cols={2}>
+  <Card title="📊 Volume Filters" icon="chart-line" href="/indexing-stream/stream/websocket/filters-details#volume-fields">
+    Filter by trading volume across multiple timeframes (1min to 24h)
+  </Card>
+  
+  <Card title="👥 Holdings Analysis" icon="users" href="/indexing-stream/stream/websocket/filters-details#holdings-analysis-fields">
+    Filter by holder distribution and whale concentration
+  </Card>
+  
+  <Card title="💧 Liquidity Filters" icon="droplet" href="/indexing-stream/stream/websocket/filters-details#other-token-fields">
+    Filter by liquidity levels and maximum liquidity
+  </Card>
+  
+  <Card title="🎯 Price Filters" icon="chart-candlestick" href="/indexing-stream/stream/websocket/filters-details#price-fields">
+    Filter by price and price changes across timeframes
+  </Card>
+  
+  <Card title="🔗 Social Filters" icon="share-nodes" href="/indexing-stream/stream/websocket/filters-details#custom-filter-fields-asset-mode">
+    Filter by social media presence and links
+  </Card>
+  
+  <Card title="🤖 Organic Trading" icon="leaf" href="/indexing-stream/stream/websocket/filters-details#organic-trading-data-fields-excluding-bot-activity">
+    Filter using organic metrics excluding bot activity
+  </Card>
+  
+  <Card title="🛡️ Security Filters" icon="shield" href="/indexing-stream/stream/websocket/filters-details#security-fields">
+    Filter by token security analysis (taxes, honeypot, mint authority, etc.)
+  </Card>
+</CardGroup>
+
+### Quick Example: High Volume Tokens
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "assetMode": true,
+    "views": [
+      {
+        "name": "high-volume-tokens",
+        "chainId": ["solana:solana"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "volume_1h": { "gte": 5000 },
+          "market_cap": { "gte": 10000 }
+        }
+      }
+    ]
+  }
+}
+```
+
+<Tip>
+For a complete list of all available filters, operators, and examples, see the [Filter Details Documentation](/indexing-stream/stream/websocket/filters-details).
+</Tip>
+
+## Message Types
+
+### Token Update Messages
+
+The token-based mode uses the same message types as pool-based mode but with `TokenDataSchema` instead of `PoolDataSchema`.
+
+#### Init Message
+Sent when a view is first created or when reconnecting:
+
+```json
+{
+  "type": "init",
+  "payload": {
+    "view-name": {
+      "data": [
+        {
+          "token": {
+            "address": "0x1234567890abcdef...",
+            "chainId": "evm:8453",
+            "symbol": "DOGE",
+            "name": "Dogecoin",
+            "decimals": 18,
+            "price": 0.000123,
+            "priceToken": 0.000123,
+            "priceTokenString": "0.000123",
+            "approximateReserveUSD": 25000,
+            "approximateReserveTokenRaw": "203252032520325203252",
+            "approximateReserveToken": 203252032520325203252,
+            "totalSupply": 1000000000,
+            "circulatingSupply": 850000000,
+            "marketCap": 104550,
+            "marketCapDiluted": 123000,
+            "logo": "https://example.com/logo.png",
+            "originLogoUrl": "https://ipfs.io/ipfs/QmOriginalPumpfunLogo123",
+            "exchange": {
+              "name": "Uniswap V2",
+              "logo": "https://example.com/uniswap-logo.png"
+            },
+            "factory": "0xfactory1234567890abcdef...",
+            "source": "pumpfun",
+            "sourceFactory": "0xsourcefactory123...",
+            "liquidity": 45000,
+            "liquidityMax": 52000,
+            "bonded": false,
+            "bondingPercentage": 65.5,
+            "bondingCurveAddress": null,
+            "preBondingFactory": "0xprebondingfactory456...",
+            "poolAddress": "0xpool1234567890abcdef...",
+            "blockchain": "base",
+            "type": "uniswap-v2",
+            "createdAt": "2024-01-15T10:30:00Z",
+            "bonded_at": null,
+            "deployer": "0x1234567890abcdef...",
+            "ath": 0.001234,
+            "atl": 0.000045,
+            "athDate": "2024-01-10T08:00:00Z",
+            "atlDate": "2023-12-25T12:00:00Z",
+            "holdersCount": 1450,
+            "top10HoldingsPercentage": 25.3,
+            "top50HoldingsPercentage": 45.7,
+            "top100HoldingsPercentage": 68.2,
+            "top200HoldingsPercentage": 68.2,
+            "devHoldingsPercentage": 8.2,
+            "insidersHoldingsPercentage": 5.3,
+            "bundlersHoldingsPercentage": 2.1,
+            "snipersHoldingsPercentage": 3.8,
+            "proTradersHoldingsPercentage": 12.5,
+            "freshTradersHoldingsPercentage": 0,
+            "smartTradersHoldingsPercentage": 0,
+            "insidersCount": 5,
+            "bundlersCount": 2,
+            "snipersCount": 10,
+            "freshTradersCount": 15,
+            "proTradersCount": 8,
+            "smartTradersCount": 0,
+            "freshTradersBuys": 25,
+            "proTradersBuys": 42,
+            "smartTradersBuys": 0
+          },
+          "price_change_1min": 2.5,
+          "price_change_5min": 5.2,
+          "price_change_1h": 12.8,
+          "price_change_4h": 25.3,
+          "price_change_6h": 18.7,
+          "price_change_12h": 45.2,
+          "price_change_24h": 67.8,
+          "price_1min_ago": 0.000120,
+          "price_5min_ago": 0.000117,
+          "price_1h_ago": 0.000109,
+          "price_4h_ago": 0.000098,
+          "price_6h_ago": 0.000104,
+          "price_12h_ago": 0.000085,
+          "price_24h_ago": 0.000073,
+          "latest_price": 0.000123,
+          "latest_trade_date": "2024-01-15T10:35:00Z",
+          "created_at": "2024-01-15T10:30:00Z",
+          "market_cap": 104550,
+          "latest_market_cap": 104550,
+          "volume_1min": 1500,
+          "volume_5min": 7500,
+          "volume_15min": 18000,
+          "volume_1h": 45000,
+          "volume_4h": 120000,
+          "volume_6h": 180000,
+          "volume_12h": 350000,
+          "volume_24h": 500000,
+          "volume_buy_1h": 27000,
+          "volume_sell_1h": 18000,
+          "trades_1h": 650,
+          "buys_1h": 420,
+          "sells_1h": 230,
+          "buyers_1h": 320,
+          "sellers_1h": 180,
+          "traders_1h": 120,
+          "fees_paid_1h": 450.5,
+          "totalFeesPaidUSD": 5000.8,
+          "organic_volume_1h": 35000,
+          "organic_trades_1h": 420,
+          "organic_buys_1h": 280,
+          "organic_sells_1h": 140,
+          "organic_buyers_1h": 210,
+          "organic_sellers_1h": 110,
+          "organic_traders_1h": 85,
+          "organic_volume_buy_1h": 22000,
+          "organic_volume_sell_1h": 13000,
+          "organic_trades_5min": 48,
+          "organic_trades_15min": 115,
+          "organic_trades_4h": 1536,
+          "organic_trades_6h": 2304,
+          "organic_trades_12h": 4608,
+          "organic_trades_24h": 7680,
+          "organic_volume_1min": 28000,
+          "organic_volume_5min": 140000,
+          "organic_volume_15min": 336000,
+          "organic_volume_4h": 896000,
+          "organic_volume_6h": 1344000,
+          "organic_volume_12h": 2688000,
+          "organic_volume_24h": 3840000,
+          "organic_buys_1min": 6,
+          "organic_buys_5min": 32,
+          "organic_buys_15min": 77,
+          "organic_buys_4h": 1024,
+          "organic_buys_6h": 1536,
+          "organic_buys_12h": 3072,
+          "organic_buys_24h": 5120,
+          "organic_sells_1min": 3,
+          "organic_sells_5min": 16,
+          "organic_sells_15min": 38,
+          "organic_sells_4h": 512,
+          "organic_sells_6h": 768,
+          "organic_sells_12h": 1536,
+          "organic_sells_24h": 2560,
+          "organic_buyers_1min": 5,
+          "organic_buyers_5min": 26,
+          "organic_buyers_15min": 62,
+          "organic_buyers_4h": 819,
+          "organic_buyers_6h": 1229,
+          "organic_buyers_12h": 2458,
+          "organic_buyers_24h": 4096,
+          "organic_sellers_1min": 2,
+          "organic_sellers_5min": 13,
+          "organic_sellers_15min": 31,
+          "organic_sellers_4h": 410,
+          "organic_sellers_6h": 614,
+          "organic_sellers_12h": 1229,
+          "organic_sellers_24h": 2048,
+          "organic_traders_1min": 2,
+          "organic_traders_5min": 10,
+          "organic_traders_15min": 24,
+          "organic_traders_4h": 307,
+          "organic_traders_6h": 461,
+          "organic_traders_12h": 922,
+          "organic_traders_24h": 1536,
+          "organic_volume_buy_5min": 84000,
+          "organic_volume_buy_15min": 201600,
+          "organic_volume_buy_4h": 537600,
+          "organic_volume_buy_6h": 806400,
+          "organic_volume_buy_12h": 1612800,
+          "organic_volume_buy_24h": 2304000,
+          "organic_volume_sell_1min": 11200,
+          "organic_volume_sell_5min": 56000,
+          "organic_volume_sell_15min": 134400,
+          "organic_volume_sell_4h": 358400,
+          "organic_volume_sell_6h": 537600,
+          "organic_volume_sell_12h": 1075200,
+          "organic_volume_sell_24h": 1536000,
+          "description": "A revolutionary meme token",
+          "socials": {
+            "twitter": "https://twitter.com/dogecoin",
+            "website": "https://dogecoin.com",
+            "telegram": "https://t.me/dogecoin",
+            "others": null,
+            "uri": "https://dogecoin.com/metadata.json"
+          },
+          "security": null,
+          "bonded_at": null,
+          "twitterReusesCount": 0,
+          "twitterRenameCount": 0,
+          "twitterRenameHistory": [],
+          "deployerMigrationsCount": 0,
+                "dexscreenerListed": true,
+      "dexscreenerHeader": null,
+      "dexscreenerAdPaid": false,
+      "holders_list": [
+        {
+          "address": "0xholder1234567890abcdef...",
+          "balance": 1000000,
+          "nativeBalance": 0.5,
+          "balanceUsd": 123,
+          "boughtAmount": 1500000,
+          "soldAmount": 500000,
+          "pnl": 23
+        }
+      ]
+        }
+      ]
+    }
+  }
+}
+```
+
+#### New Token Message
+Sent when a new token is added to a view:
+
+```json
+{
+  "type": "new-token",
+  "payload": {
+    "viewName": "new-pair",
+    "token": {
+      "token": {
+        "address": "DPQxrrxJfTrLEjyknrUBcMDsAMYbAQJMnKTuJh4kbonk",
+        "chainId": "solana:solana",
+        "symbol": "NEWTOKEN",
+        "name": "New Revolutionary Token",
+        "decimals": 6,
+        "id": 12345,
+        "price": 0.000123456789,
+        "priceToken": 7.234567890123456e-8,
+        "priceTokenString": "0.00000007234567890123456",
+        "approximateReserveUSD": 15000.50,
+        "approximateReserveTokenRaw": "122000000000000",
+        "approximateReserveToken": 122000000,
+        "totalSupply": 1000000000,
+        "circulatingSupply": 850000000,
+        "marketCap": 104950.0,
+        "marketCapDiluted": 123456.789,
+        "logo": "https://example.com/token-logo.png",
+        "originLogoUrl": "https://ipfs.io/ipfs/QmOriginalTokenLogo456",
+        "exchange": {
+          "name": "Raydium",
+          "logo": "https://raydium.io/logo.png"
+        },
+        "factory": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+        "source": "raydium-v4",
+        "sourceFactory": "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
+        "liquidity": 30000.75,
+        "liquidityMax": 35500.25,
+        "bonded": false,
+        "bondingPercentage": 45.8,
+        "bondingCurveAddress": "BondingCurve123456789",
+        "preBondingFactory": "PreBondingFactory789",
+        "poolAddress": "PoolAddress123456789",
+            "blockchain": "Solana",
+            "type": "raydium-v4",
+            "createdAt": "2024-01-15T10:30:00.000Z",
+            "bonded_at": null,
+            "deployer": "DeployerAddress123456789",
+            "ath": 0.002345,
+            "atl": 0.000032,
+            "athDate": "2024-01-09T09:30:00.000Z",
+            "atlDate": "2023-12-20T11:15:00.000Z",
+            "holdersCount": 1450,
+            "top10HoldingsPercentage": 22.1,
+            "top50HoldingsPercentage": 41.8,
+            "top100HoldingsPercentage": 63.5,
+            "top200HoldingsPercentage": 63.5,
+            "devHoldingsPercentage": 7.5,
+            "insidersHoldingsPercentage": 4.2,
+            "bundlersHoldingsPercentage": 1.9,
+            "snipersHoldingsPercentage": 3.1,
+            "proTradersHoldingsPercentage": 11.8,
+            "freshTradersHoldingsPercentage": 0,
+            "smartTradersHoldingsPercentage": 0,
+            "insidersCount": 4,
+            "bundlersCount": 1,
+            "snipersCount": 8,
+            "freshTradersCount": 12,
+            "proTradersCount": 6,
+            "smartTradersCount": 0,
+            "freshTradersBuys": 20,
+            "proTradersBuys": 35,
+            "smartTradersBuys": 0
+      },
+      "price_change_1min": 2.5,
+      "price_change_5min": 5.2,
+      "price_change_1h": 12.8,
+      "price_change_4h": 25.3,
+      "price_change_6h": 18.7,
+      "price_change_12h": 45.2,
+      "price_change_24h": 67.8,
+      "price_1min_ago": 0.000120,
+      "price_5min_ago": 0.000117,
+      "price_1h_ago": 0.000109,
+      "price_4h_ago": 0.000098,
+      "price_6h_ago": 0.000104,
+      "price_12h_ago": 0.000085,
+      "price_24h_ago": 0.000073,
+      "latest_price": 0.000123456789,
+      "latest_trade_date": "2024-01-15T10:31:00.000Z",
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "market_cap": 104950.0,
+      "latest_market_cap": 104950.0,
+      "volume_1min": 1500,
+      "volume_5min": 7500,
+      "volume_15min": 18000,
+      "volume_1h": 45000,
+      "volume_4h": 120000,
+      "volume_6h": 180000,
+      "volume_12h": 350000,
+      "volume_24h": 500000,
+      "volume_buy_1min": 900,
+      "volume_buy_5min": 4500,
+      "volume_buy_15min": 10800,
+      "volume_buy_1h": 27000,
+      "volume_buy_4h": 72000,
+      "volume_buy_6h": 108000,
+      "volume_buy_12h": 210000,
+      "volume_buy_24h": 300000,
+      "volume_sell_1min": 600,
+      "volume_sell_5min": 3000,
+      "volume_sell_15min": 7200,
+      "volume_sell_1h": 18000,
+      "volume_sell_4h": 48000,
+      "volume_sell_6h": 72000,
+      "volume_sell_12h": 140000,
+      "volume_sell_24h": 200000,
+      "trades_1min": 15,
+      "trades_5min": 75,
+      "trades_15min": 180,
+      "trades_1h": 650,
+      "trades_4h": 2400,
+      "trades_6h": 3600,
+      "trades_12h": 7200,
+      "trades_24h": 12000,
+      "buys_1min": 10,
+      "buys_5min": 50,
+      "buys_15min": 120,
+      "buys_1h": 420,
+      "buys_4h": 1600,
+      "buys_6h": 2400,
+      "buys_12h": 4800,
+      "buys_24h": 8000,
+      "sells_1min": 5,
+      "sells_5min": 25,
+      "sells_15min": 60,
+      "sells_1h": 230,
+      "sells_4h": 800,
+      "sells_6h": 1200,
+      "sells_12h": 2400,
+      "sells_24h": 4000,
+      "buyers_1min": 8,
+      "buyers_5min": 40,
+      "buyers_15min": 96,
+      "buyers_1h": 320,
+      "buyers_4h": 1200,
+      "buyers_6h": 1800,
+      "buyers_12h": 3600,
+      "buyers_24h": 6000,
+      "sellers_1min": 4,
+      "sellers_5min": 20,
+      "sellers_15min": 48,
+      "sellers_1h": 180,
+      "sellers_4h": 640,
+      "sellers_6h": 960,
+      "sellers_12h": 1920,
+      "sellers_24h": 3200,
+      "traders_1min": 3,
+      "traders_5min": 15,
+      "traders_15min": 36,
+      "traders_1h": 120,
+      "traders_4h": 480,
+      "traders_6h": 720,
+      "traders_12h": 1440,
+      "traders_24h": 2400,
+      "fees_paid_1min": 15.5,
+      "fees_paid_5min": 77.5,
+      "fees_paid_15min": 186.0,
+      "fees_paid_1h": 450.5,
+      "fees_paid_4h": 1200.0,
+      "fees_paid_6h": 1800.0,
+      "fees_paid_12h": 3500.0,
+      "fees_paid_24h": 5000.0,
+      "totalFeesPaidUSD": 5000.8,
+      "description": "A revolutionary new token with advanced features",
+      "socials": {
+        "twitter": "https://twitter.com/newtoken",
+        "website": "https://newtoken.com",
+        "telegram": "https://t.me/newtoken",
+        "others": {
+          "discord": "https://discord.gg/newtoken",
+          "medium": "https://medium.com/@newtoken"
+        },
+        "uri": "https://newtoken.com/metadata.json"
+      },
+      "security": {
+        "mintDisabled": true,
+        "freezeDisabled": true,
+        "lpLocked": true,
+        "honeypot": false
+      },
+      "bonded_at": null,
+      "twitterReusesCount": 0,
+      "twitterRenameCount": 0,
+      "twitterRenameHistory": [],
+      "deployerMigrationsCount": 0,
+      "dexscreenerListed": true,
+      "dexscreenerHeader": null,
+      "dexscreenerAdPaid": false,
+      "holders_list": [
+        {
+          "address": "HolderAddress123456789",
+          "balance": 1000000,
+          "nativeBalance": 0.5,
+          "balanceUsd": 123.45,
+          "boughtAmount": 1500000,
+          "soldAmount": 500000,
+          "pnl": 23.45
+        }
+      ],
+      "organic_trades_1min": 12,
+      "organic_trades_5min": 60,
+      "organic_trades_15min": 144,
+      "organic_trades_1h": 520,
+      "organic_trades_4h": 1920,
+      "organic_trades_6h": 2880,
+      "organic_trades_12h": 5760,
+      "organic_trades_24h": 9600,
+      "organic_volume_1min": 1200,
+      "organic_volume_5min": 6000,
+      "organic_volume_15min": 14400,
+      "organic_volume_1h": 36000,
+      "organic_volume_4h": 96000,
+      "organic_volume_6h": 144000,
+      "organic_volume_12h": 280000,
+      "organic_volume_24h": 400000,
+      "organic_buys_1min": 8,
+      "organic_buys_5min": 40,
+      "organic_buys_15min": 96,
+      "organic_buys_1h": 336,
+      "organic_buys_4h": 1280,
+      "organic_buys_6h": 1920,
+      "organic_buys_12h": 3840,
+      "organic_buys_24h": 6400,
+      "organic_sells_1min": 4,
+      "organic_sells_5min": 20,
+      "organic_sells_15min": 48,
+      "organic_sells_1h": 184,
+      "organic_sells_4h": 640,
+      "organic_sells_6h": 960,
+      "organic_sells_12h": 1920,
+      "organic_sells_24h": 3200,
+      "organic_buyers_1min": 6,
+      "organic_buyers_5min": 32,
+      "organic_buyers_15min": 77,
+      "organic_buyers_1h": 256,
+      "organic_buyers_4h": 960,
+      "organic_buyers_6h": 1440,
+      "organic_buyers_12h": 2880,
+      "organic_buyers_24h": 4800,
+      "organic_sellers_1min": 3,
+      "organic_sellers_5min": 16,
+      "organic_sellers_15min": 38,
+      "organic_sellers_1h": 144,
+      "organic_sellers_4h": 512,
+      "organic_sellers_6h": 768,
+      "organic_sellers_12h": 1536,
+      "organic_sellers_24h": 2560,
+      "organic_traders_1min": 2,
+      "organic_traders_5min": 12,
+      "organic_traders_15min": 29,
+      "organic_traders_1h": 96,
+      "organic_traders_4h": 384,
+      "organic_traders_6h": 576,
+      "organic_traders_12h": 1152,
+      "organic_traders_24h": 1920,
+      "organic_volume_buy_1min": 720,
+      "organic_volume_buy_5min": 3600,
+      "organic_volume_buy_15min": 8640,
+      "organic_volume_buy_1h": 21600,
+      "organic_volume_buy_4h": 57600,
+      "organic_volume_buy_6h": 86400,
+      "organic_volume_buy_12h": 168000,
+      "organic_volume_buy_24h": 240000,
+      "organic_volume_sell_1min": 480,
+      "organic_volume_sell_5min": 2400,
+      "organic_volume_sell_15min": 5760,
+      "organic_volume_sell_1h": 14400,
+      "organic_volume_sell_4h": 38400,
+      "organic_volume_sell_6h": 57600,
+      "organic_volume_sell_12h": 112000,
+      "organic_volume_sell_24h": 160000
+    }
+  }
+}
+```
+
+#### Token Update Message
+Sent when token data is updated:
+
+```json
+{
+  "type": "update-token",
+  "payload": {
+    "viewName": "new-pair",
+    "token": {
+      "token": {
+        "address": "DPQxrrxJfTrLEjyknrUBcMDsAMYbAQJMnKTuJh4kbonk",
+        "chainId": "solana:solana",
+        "symbol": "UPDATEDTOKEN",
+        "name": "Updated Token Name",
+        "decimals": 6,
+        "id": 12345,
+        "price": 0.000135789012,
+        "priceToken": 8.234567890123456e-8,
+        "priceTokenString": "0.00000008234567890123456",
+        "approximateReserveUSD": 18500.75,
+        "approximateReserveTokenRaw": "136000000000000",
+        "approximateReserveToken": 136000000,
+        "totalSupply": 1000000000,
+        "circulatingSupply": 860000000,
+        "marketCap": 116778.15,
+        "marketCapDiluted": 135789.012,
+        "logo": "https://example.com/updated-logo.png",
+        "originLogoUrl": "https://ipfs.io/ipfs/QmOriginalUpdatedLogo789",
+        "exchange": {
+          "name": "Raydium",
+          "logo": "https://raydium.io/logo.png"
+        },
+        "factory": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+        "source": "raydium-v4",
+        "sourceFactory": "5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1",
+        "liquidity": 37000.90,
+        "liquidityMax": 42500.15,
+        "bonded": false,
+        "bondingPercentage": 52.3,
+        "bondingCurveAddress": "BondingCurve123456789",
+        "preBondingFactory": "PreBondingFactory789",
+        "poolAddress": "UpdatedPoolAddress456",
+            "blockchain": "Solana",
+            "type": "raydium-v4",
+            "createdAt": "2024-01-15T10:30:00.000Z",
+            "bonded_at": null,
+            "deployer": "DeployerAddress123456789",
+            "ath": 0.002789,
+            "atl": 0.000029,
+            "athDate": "2024-01-11T10:45:00.000Z",
+            "atlDate": "2023-12-18T14:20:00.000Z",
+            "holdersCount": 1680,
+            "top10HoldingsPercentage": 23.7,
+            "top50HoldingsPercentage": 43.1,
+            "top100HoldingsPercentage": 65.8,
+            "top200HoldingsPercentage": 65.8,
+            "devHoldingsPercentage": 7.8,
+            "insidersHoldingsPercentage": 4.9,
+            "bundlersHoldingsPercentage": 1.8,
+            "snipersHoldingsPercentage": 3.2,
+            "proTradersHoldingsPercentage": 14.2,
+            "freshTradersHoldingsPercentage": 0,
+            "smartTradersHoldingsPercentage": 0,
+            "insidersCount": 5,
+            "bundlersCount": 2,
+            "snipersCount": 9,
+            "freshTradersCount": 18,
+            "proTradersCount": 10,
+            "smartTradersCount": 0,
+            "freshTradersBuys": 30,
+            "proTradersBuys": 50,
+            "smartTradersBuys": 0
+      },
+      "price_change_1min": 3.2,
+      "price_change_5min": 6.8,
+      "price_change_1h": 15.2,
+      "price_change_4h": 28.7,
+      "price_change_6h": 22.1,
+      "price_change_12h": 48.9,
+      "price_change_24h": 72.4,
+      "price_1min_ago": 0.000131,
+      "price_5min_ago": 0.000127,
+      "price_1h_ago": 0.000118,
+      "price_4h_ago": 0.000105,
+      "price_6h_ago": 0.000111,
+      "price_12h_ago": 0.000091,
+      "price_24h_ago": 0.000079,
+      "latest_price": 0.000135789012,
+      "latest_trade_date": "2024-01-15T10:45:00.000Z",
+      "created_at": "2024-01-15T10:30:00.000Z",
+      "market_cap": 116778.15,
+      "latest_market_cap": 116778.15,
+      "volume_1min": 1800,
+      "volume_5min": 9000,
+      "volume_15min": 21600,
+      "volume_1h": 54000,
+      "volume_4h": 144000,
+      "volume_6h": 216000,
+      "volume_12h": 420000,
+      "volume_24h": 600000,
+      "volume_buy_1min": 1080,
+      "volume_buy_5min": 5400,
+      "volume_buy_15min": 12960,
+      "volume_buy_1h": 32400,
+      "volume_buy_4h": 86400,
+      "volume_buy_6h": 129600,
+      "volume_buy_12h": 252000,
+      "volume_buy_24h": 360000,
+      "volume_sell_1min": 720,
+      "volume_sell_5min": 3600,
+      "volume_sell_15min": 8640,
+      "volume_sell_1h": 21600,
+      "volume_sell_4h": 57600,
+      "volume_sell_6h": 86400,
+      "volume_sell_12h": 168000,
+      "volume_sell_24h": 240000,
+      "trades_1min": 18,
+      "trades_5min": 90,
+      "trades_15min": 216,
+      "trades_1h": 780,
+      "trades_4h": 2880,
+      "trades_6h": 4320,
+      "trades_12h": 8640,
+      "trades_24h": 14400,
+      "buys_1min": 12,
+      "buys_5min": 60,
+      "buys_15min": 144,
+      "buys_1h": 504,
+      "buys_4h": 1920,
+      "buys_6h": 2880,
+      "buys_12h": 5760,
+      "buys_24h": 9600,
+      "sells_1min": 6,
+      "sells_5min": 30,
+      "sells_15min": 72,
+      "sells_1h": 276,
+      "sells_4h": 960,
+      "sells_6h": 1440,
+      "sells_12h": 2880,
+      "sells_24h": 4800,
+      "buyers_1min": 10,
+      "buyers_5min": 48,
+      "buyers_15min": 115,
+      "buyers_1h": 384,
+      "buyers_4h": 1440,
+      "buyers_6h": 2160,
+      "buyers_12h": 4320,
+      "buyers_24h": 7200,
+      "sellers_1min": 5,
+      "sellers_5min": 24,
+      "sellers_15min": 58,
+      "sellers_1h": 216,
+      "sellers_4h": 768,
+      "sellers_6h": 1152,
+      "sellers_12h": 2304,
+      "sellers_24h": 3840,
+      "traders_1min": 4,
+      "traders_5min": 18,
+      "traders_15min": 43,
+      "traders_1h": 144,
+      "traders_4h": 576,
+      "traders_6h": 864,
+      "traders_12h": 1728,
+      "traders_24h": 2880,
+      "fees_paid_1min": 18.6,
+      "fees_paid_5min": 93.0,
+      "fees_paid_15min": 223.2,
+      "fees_paid_1h": 540.6,
+      "fees_paid_4h": 1440.0,
+      "fees_paid_6h": 2160.0,
+      "fees_paid_12h": 4200.0,
+      "fees_paid_24h": 6000.0,
+      "totalFeesPaidUSD": 6250.5,
+      "description": "An updated revolutionary token with new features",
+      "socials": {
+        "twitter": "https://twitter.com/updatedtoken",
+        "website": "https://updatedtoken.com",
+        "telegram": "https://t.me/updatedtoken",
+        "others": {
+          "discord": "https://discord.gg/updatedtoken",
+          "medium": "https://medium.com/@updatedtoken",
+          "reddit": "https://reddit.com/r/updatedtoken"
+        },
+        "uri": "https://updatedtoken.com/metadata.json"
+      },
+      "security": {
+        "mintDisabled": true,
+        "freezeDisabled": true,
+        "lpLocked": true,
+        "honeypot": false
+      },
+      "bonded_at": null,
+      "twitterReusesCount": 0,
+      "twitterRenameCount": 1,
+      "twitterRenameHistory": [
+        {
+          "username": "oldtokenname",
+          "last_checked": "2024-01-10T08:15:00.000Z"
+        }
+      ],
+      "deployerMigrationsCount": 0,
+      "dexscreenerListed": true,
+      "dexscreenerHeader": null,
+      "dexscreenerAdPaid": false,
+      "holders_list": [
+        {
+          "address": "UpdatedHolderAddress123",
+          "balance": 1200000,
+          "nativeBalance": 0.8,
+          "balanceUsd": 163.15,
+          "boughtAmount": 1800000,
+          "soldAmount": 600000,
+          "pnl": 45.67
+        },
+        {
+          "address": "AnotherHolderAddress456",
+          "balance": 800000,
+          "nativeBalance": 0.3,
+          "balanceUsd": 108.77,
+          "boughtAmount": 1000000,
+          "soldAmount": 200000,
+          "pnl": 12.34
+        }
+      ],
+      "organic_trades_1min": 14,
+      "organic_trades_5min": 72,
+      "organic_trades_15min": 173,
+      "organic_trades_1h": 624,
+      "organic_trades_4h": 2304,
+      "organic_trades_6h": 3456,
+      "organic_trades_12h": 6912,
+      "organic_trades_24h": 11520,
+      "organic_volume_1min": 1440,
+      "organic_volume_5min": 7200,
+      "organic_volume_15min": 17280,
+      "organic_volume_1h": 43200,
+      "organic_volume_4h": 115200,
+      "organic_volume_6h": 172800,
+      "organic_volume_12h": 336000,
+      "organic_volume_24h": 480000,
+      "organic_buys_1min": 10,
+      "organic_buys_5min": 48,
+      "organic_buys_15min": 115,
+      "organic_buys_1h": 403,
+      "organic_buys_4h": 1536,
+      "organic_buys_6h": 2304,
+      "organic_buys_12h": 4608,
+      "organic_buys_24h": 7680,
+      "organic_sells_1min": 4,
+      "organic_sells_5min": 24,
+      "organic_sells_15min": 58,
+      "organic_sells_1h": 221,
+      "organic_sells_4h": 768,
+      "organic_sells_6h": 1152,
+      "organic_sells_12h": 2304,
+      "organic_sells_24h": 3840,
+      "organic_buyers_1min": 8,
+      "organic_buyers_5min": 38,
+      "organic_buyers_15min": 92,
+      "organic_buyers_1h": 307,
+      "organic_buyers_4h": 1152,
+      "organic_buyers_6h": 1728,
+      "organic_buyers_12h": 3456,
+      "organic_buyers_24h": 5760,
+      "organic_sellers_1min": 4,
+      "organic_sellers_5min": 19,
+      "organic_sellers_15min": 46,
+      "organic_sellers_1h": 173,
+      "organic_sellers_4h": 614,
+      "organic_sellers_6h": 922,
+      "organic_sellers_12h": 1843,
+      "organic_sellers_24h": 3072,
+      "organic_traders_1min": 3,
+      "organic_traders_5min": 14,
+      "organic_traders_15min": 35,
+      "organic_traders_1h": 115,
+      "organic_traders_4h": 461,
+      "organic_traders_6h": 691,
+      "organic_traders_12h": 1382,
+      "organic_traders_24h": 2304,
+      "organic_volume_buy_1min": 864,
+      "organic_volume_buy_5min": 4320,
+      "organic_volume_buy_15min": 10368,
+      "organic_volume_buy_1h": 25920,
+      "organic_volume_buy_4h": 69120,
+      "organic_volume_buy_6h": 103680,
+      "organic_volume_buy_12h": 201600,
+      "organic_volume_buy_24h": 288000,
+      "organic_volume_sell_1min": 576,
+      "organic_volume_sell_5min": 2880,
+      "organic_volume_sell_15min": 6912,
+      "organic_volume_sell_1h": 17280,
+      "organic_volume_sell_4h": 46080,
+      "organic_volume_sell_6h": 69120,
+      "organic_volume_sell_12h": 134400,
+      "organic_volume_sell_24h": 192000
+    }
+  }
+}
+```
+
+#### Token Remove Message
+Sent when a token is removed from a view:
+
+```json
+{
+  "type": "remove-token",
+  "payload": {
+    "viewName": "new-pair",
+    "tokenKey": "solana:solana|CokehEuHjbVp6E6WepR9ukMWQsivssch4ZirYZSZGwoW"
+  }
+}
+```
+
+<Tip>
+Note: In token-based mode, the message types are updated to reflect token operations: `new-token`, `update-token`, `remove-token`. The data structure follows `TokenDataSchema` instead of `PoolDataSchema`. The `tokenKey` in remove messages uses the format `chainId|tokenAddress`.
+</Tip>
+
+## View Management
+
+View management works the same as in Pool-Based mode:
+
+### Pause Views
+
+```json
+{
+  "type": "pulse-pause",
+  "payload": {
+    "action": "pause",
+    "views": ["view-name-1", "view-name-2"]
+  }
+}
+```
+
+### Unpause Views
+
+```json
+{
+  "type": "pulse-pause",
+  "payload": {
+    "action": "unpause",
+    "views": ["view-name-1"]
+  }
+}
+```
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribe
+
+Unsubscribe functionality is identical to Pool-Based mode. See the Pool-Based documentation for complete unsubscribe examples.
+
+## Data Compression
+
+Data compression works the same as in Pool-Based mode with gzip compression available for reduced bandwidth usage.
+
+## Pagination
+
+The Pulse API supports pagination to efficiently handle large datasets. You can retrieve the total count of items for your views without fetching the actual data.
+
+### Pagination Endpoint
+
+Use the `/api/2/pulse/pagination` POST endpoint with the same payload structure as your main query:
+
+```json
+POST /api/2/pulse/pagination
+```
+
+### Pagination Request
+
+Send the same payload structure you would use for data retrieval:
+
+```json
+{
+  "assetMode": true,
+  "views": [
+    {
+      "name": "high-volume-tokens",
+      "chainId": ["solana:solana"],
+      "poolTypes": ["pumpfun"],
+      "sortBy": "volume_1h",
+      "sortOrder": "desc",
+      "limit": 50,
+      "filters": {
+        "volume_1h": { "gte": 1000 },
+        "market_cap": { "gte": 10000 }
+      }
+    }
+  ]
+}
+```
+
+### Pagination Response
+
+The response provides the total count for each view:
+
+```json
+{
+  "high-volume-tokens": {
+    "pagination": 1250
+  }
+}
+```
+
+### Using Pagination with Data Retrieval
+
+1. First, get the total count using the pagination endpoint
+2. Then, retrieve data in chunks using `offset` and `limit` parameters:
+
+```json
+{
+  "assetMode": true,
+  "views": [
+    {
+      "name": "high-volume-tokens",
+      "chainId": ["solana:solana"],
+      "poolTypes": ["pumpfun"],
+      "sortBy": "volume_1h",
+      "sortOrder": "desc",
+      "limit": 50,
+      "offset": 0,
+      "filters": {
+        "volume_1h": { "gte": 1000 },
+        "market_cap": { "gte": 10000 }
+      }
+    }
+  ]
+}
+```
+
+For the next page, increment the `offset` by the `limit` value (e.g., `offset: 50`, `offset: 100`, etc.).
+
+### Pagination Notes
+
+- Pagination counts are cached to improve performance
+- The pagination endpoint accepts the same payload structure as data retrieval
+- Use pagination to implement client-side pagination or to estimate result sizes before fetching data
+- Maximum limit per request is 100 items, so you may need multiple requests for large datasets
+
+## Performance Considerations
+
+### Token View Limits
+- Maximum 10 views per connection
+- Maximum 100 tokens per view
+- Maximum 1000 total tokens across all views
+
+### Bandwidth Optimization
+- Use `pause` to reduce bandwidth when views are not needed
+- Filter aggressively to reduce data volume
+- Consider using `limit` to restrict token count
+- Use organic metrics for cleaner data without bot activity
+- Use pagination to handle large datasets efficiently
+
+## Support
+
+Need help? Our response times are < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup>

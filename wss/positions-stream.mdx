@@ -1,0 +1,379 @@
+---
+title: "Positions Stream"
+asyncapi: "asyncapi.yaml positions"
+description: "Real-time WebSocket stream for all positions of a wallet with automatic updates"
+---
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `positions` (plural)
+
+## Subscription Format
+
+The `positions` endpoint allows you to subscribe to **all positions** of a specific wallet on a blockchain, providing real-time updates whenever any trade occurs on any of the wallet's tokens.
+
+### Subscribe to All Wallet Positions
+
+```json
+{
+  "type": "positions",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "wallet": "3pfvcg5dGpDxHE71TuLJCRWm25PTqk6Jyj6cNjmDVywh",
+    "blockchain": "solana:solana",
+    "subscriptionId": "wallet-all-positions",
+    "subscriptionTracking": true,
+    "includeFees": false,
+    "useSwapRecipient": false
+  }
+}
+```
+
+## Parameters
+
+- **`wallet`** (required): The wallet address to track. Addresses will be automatically checksummed
+- **`blockchain`** (optional, default: `"evm:1"`): Blockchain identifier (e.g., `"evm:1"` for Ethereum, `"evm:56"` for BSC, `"solana:solana"` for Solana)
+- **`subscriptionId`** (optional): Custom identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+- **`includeFees`** (optional, default: `false`): If `true`, deducts total fees paid (gas + platform + MEV) from the PnL calculation
+- **`useSwapRecipient`** (optional, default: `false`): If `true`, uses swap recipient tracking mode instead of transaction sender. Useful for tracking wallets that receive tokens from other signers (e.g., trading bots, copy trading)
+
+<Note>
+**Difference from `position` stream**: The `positions` (plural) stream tracks **all tokens** in a wallet automatically, while `position` (singular) tracks only **one specific token**. Use `positions` for portfolio monitoring and `position` for single-token tracking.
+</Note>
+
+## Update Flow
+
+### Initial Snapshot
+
+Upon subscription, you receive a **complete snapshot** of all current positions (with balance > 0):
+
+```json
+{
+  "data": {
+    "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+    "chainId": "evm:1",
+    "positions": [
+      {
+        "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+        "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "chainId": "evm:1",
+        "balance": 1000.5,
+        "rawBalance": "1000500000",
+        "amountUSD": 1000.50,
+        "buys": 5,
+        "sells": 2,
+        "volumeBuyToken": 1200.0,
+        "volumeSellToken": 199.5,
+        "volumeBuy": 1200.00,
+        "volumeSell": 199.50,
+        "avgBuyPriceUSD": 1.0,
+        "avgSellPriceUSD": 1.0025,
+        "realizedPnlUSD": 0.50,
+        "unrealizedPnlUSD": 0.0,
+        "totalPnlUSD": 0.50,
+        "firstDate": "2024-01-15T10:30:00.000Z",
+        "lastDate": "2024-01-20T14:45:00.000Z",
+        "tokenDetails": {
+          "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+          "chainId": "evm:1",
+          "name": "USD Coin",
+          "symbol": "USDC",
+          "decimals": 6,
+          "logo": "https://...",
+          "price": 1.0,
+          "priceChange24h": 0.01,
+          "liquidity": 1000000.0,
+          "marketCap": 25000000000.0
+        }
+      }
+    ]
+  },
+  "subscriptionId": "wallet-all-positions"
+}
+```
+
+### Real-Time Updates
+
+After the initial snapshot, you receive **incremental updates** whenever:
+- A trade occurs on any market involving one of the tracked tokens
+- Position balance changes (buy/sell)
+- Price updates affect unrealized P&L
+
+Each update contains the **complete positions list** with updated data:
+
+```json
+{
+  "data": {
+    "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+    "chainId": "evm:1",
+    "positions": [
+      {
+        "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+        "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+        "chainId": "evm:1",
+        "balance": 800.0,
+        "rawBalance": "800000000",
+        "amountUSD": 800.00,
+        "buys": 5,
+        "sells": 3,
+        "totalPnlUSD": 1.00,
+        "tokenDetails": { ... }
+      },
+      {
+        "wallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
+        "token": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+        "chainId": "evm:1",
+        "balance": 5.5,
+        "rawBalance": "5500000000000000000",
+        "amountUSD": 13750.00,
+        "buys": 2,
+        "sells": 0,
+        "totalPnlUSD": 250.00,
+        "tokenDetails": { ... }
+      }
+    ]
+  },
+  "subscriptionId": "wallet-all-positions"
+}
+```
+
+## Position Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wallet` | `string` | Wallet address |
+| `token` | `string` | Token contract address |
+| `chainId` | `string` | Blockchain identifier |
+| `balance` | `number` | Current token balance (formatted) |
+| `rawBalance` | `string` | Raw balance (with decimals as string) |
+| `amountUSD` | `number` | Current value in USD |
+| `buys` | `number` | Total number of buy transactions |
+| `sells` | `number` | Total number of sell transactions |
+| `volumeBuyToken` | `number` | Total volume bought (in token units) |
+| `volumeSellToken` | `number` | Total volume sold (in token units) |
+| `volumeBuy` | `number` | Total volume bought (in USD) |
+| `volumeSell` | `number` | Total volume sold (in USD) |
+| `avgBuyPriceUSD` | `number` | Average buy price in USD |
+| `avgSellPriceUSD` | `number` | Average sell price in USD |
+| `realizedPnlUSD` | `number` | Realized profit/loss in USD |
+| `unrealizedPnlUSD` | `number` | Unrealized profit/loss in USD |
+| `totalPnlUSD` | `number` | Total profit/loss (realized + unrealized - fees if includeFees=true) |
+| `totalFeesPaidUSD` | `number \| undefined` | Total fees paid on this position (gas + platform + MEV). Only present when `useSwapRecipient=true` |
+| `firstDate` | `string \| null` | Date of first trade |
+| `lastDate` | `string \| null` | Date of most recent trade |
+| `tokenDetails` | `object` | Token metadata (name, symbol, logo, price, etc.) |
+
+## Automatic Filtering
+
+<Info>
+**Quote Token Filtering**: Native tokens (ETH, SOL, etc.) and stablecoins used as quote tokens are automatically filtered out from the positions list to focus on actual trading positions.
+</Info>
+
+- Only positions with `balance > 0` are included
+- Historical data from database + real-time RPC balance checks
+- 10-second Redis cache for high-frequency updates
+
+## Data Sources
+
+1. **Historical Data**: Loaded from database (trade history, P&L calculations)
+2. **Real-Time Balances**: Fetched from RPC nodes for accurate current balances
+3. **Redis Cache**: 10-second TTL cache for frequently updated positions
+4. **PubSub Feed**: Real-time swap events trigger position updates
+
+## Performance Metrics
+
+- **Initial Load**: ~200-500ms depending on number of positions
+- **Update Latency**: Less than 100ms from swap execution to client update
+- **Cache Hit Rate**: ~95% for active trading sessions
+
+## Example Implementation
+
+<CodeGroup>
+
+```javascript JavaScript/TypeScript
+const ws = new WebSocket('wss://api.mobula.io');
+
+ws.onopen = () => {
+  // Subscribe to all positions
+  ws.send(JSON.stringify({
+    type: 'positions',
+    authorization: 'YOUR-API-KEY',
+    payload: {
+      wallet: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+      blockchain: 'evm:1',
+      subscriptionTracking: true
+    }
+  }));
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.event === 'subscribed') {
+    console.log('Subscribed:', data.subscriptionId);
+  } else if (data.data) {
+    console.log(`Portfolio Update: ${data.data.positions.length} positions`);
+    
+    // Calculate total portfolio value
+    const totalValue = data.data.positions.reduce(
+      (sum, pos) => sum + pos.amountUSD, 
+      0
+    );
+    console.log(`Total Portfolio Value: $${totalValue.toFixed(2)}`);
+    
+    // Show each position
+    data.data.positions.forEach(position => {
+      const token = position.tokenDetails;
+      const pnlPercent = (position.totalPnlUSD / (position.volumeBuy || 1)) * 100;
+      
+      console.log(`${token.symbol}: ${position.balance.toFixed(4)} ($${position.amountUSD.toFixed(2)})`);
+      console.log(`  PnL: $${position.totalPnlUSD.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
+      console.log(`  Trades: ${position.buys} buys, ${position.sells} sells`);
+    });
+  }
+};
+
+// Unsubscribe
+ws.send(JSON.stringify({
+  type: 'unsubscribe',
+  payload: {
+    subscriptionId: 'wallet-all-positions'
+  }
+}));
+```
+
+```python Python
+import websocket
+import json
+
+def on_message(ws, message):
+    data = json.loads(message)
+    
+    if data.get('event') == 'subscribed':
+        print(f"Subscribed: {data['subscriptionId']}")
+    elif 'data' in data:
+        positions = data['data']['positions']
+        print(f"\nPortfolio Update: {len(positions)} positions")
+        
+        # Calculate total portfolio value
+        total_value = sum(pos['amountUSD'] for pos in positions)
+        print(f"Total Portfolio Value: ${total_value:.2f}")
+        
+        # Display each position
+        for position in positions:
+            token = position['tokenDetails']
+            pnl_percent = (position['totalPnlUSD'] / (position['volumeBuy'] or 1)) * 100
+            
+            print(f"\n{token['symbol']}: {position['balance']:.4f} (${position['amountUSD']:.2f})")
+            print(f"  PnL: ${position['totalPnlUSD']:.2f} ({pnl_percent:.2f}%)")
+            print(f"  Trades: {position['buys']} buys, {position['sells']} sells")
+
+def on_open(ws):
+    subscribe_msg = {
+        'type': 'positions',
+        'authorization': 'YOUR-API-KEY',
+        'payload': {
+            'wallet': '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb',
+            'blockchain': 'evm:1',
+            'subscriptionTracking': True
+        }
+    }
+    ws.send(json.dumps(subscribe_msg))
+
+ws = websocket.WebSocketApp('wss://api.mobula.io',
+                            on_message=on_message,
+                            on_open=on_open)
+ws.run_forever()
+```
+
+</CodeGroup>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Portfolio Monitoring" icon="chart-line">
+    Track all positions of a wallet in real-time for portfolio management dashboards
+  </Card>
+  <Card title="Risk Management" icon="shield-halved">
+    Monitor exposure across all tokens with instant P&L updates
+  </Card>
+  <Card title="Trading Bots" icon="robot">
+    Build automated trading strategies based on complete position data
+  </Card>
+  <Card title="Analytics" icon="chart-mixed">
+    Analyze trading performance across multiple tokens in real-time
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+### Common Errors
+
+```json
+{
+  "error": "Failed to subscribe to positions",
+  "subscriptionId": "wallet-all-positions"
+}
+```
+
+### Best Practices
+
+1. **Reconnection**: Implement exponential backoff for reconnections
+2. **Subscription Tracking**: Use `subscriptionTracking: true` to confirm subscriptions
+3. **Duplicate Detection**: Use deterministic `subscriptionId` to avoid duplicate subscriptions
+4. **Memory Management**: Unsubscribe when no longer needed to free resources
+
+## Rate Limits
+
+- **Max Concurrent Subscriptions**: 100 per connection
+- **Rate Limiting**: Standard WebSocket rate limits apply
+- **Position Limit**: No limit on number of positions per wallet
+
+## Related Streams
+
+<CardGroup cols={2}>
+  <Card title="Position Stream (Single Token)" icon="coin" href="/indexing-stream/stream/websocket/wss-position-stream">
+    Track a single token position for a wallet
+  </Card>
+  <Card title="Fast Trades" icon="bolt" href="/indexing-stream/stream/websocket/wss-fast-trades">
+    Real-time trade feed for specific tokens
+  </Card>
+  <Card title="Holders Stream" icon="users" href="/indexing-stream/stream/websocket/holders-stream">
+    Monitor token holder analytics
+  </Card>
+  <Card title="Token Details" icon="circle-info" href="/indexing-stream/stream/websocket/wss-token-details">
+    Real-time token metadata updates
+  </Card>
+</CardGroup>
+
+## FAQ
+
+<AccordionGroup>
+  <Accordion title="What's the difference between 'position' and 'positions' streams?">
+    - **`position`** (singular): Tracks **one specific token** for a wallet. You need to specify both wallet and token address.
+    - **`positions`** (plural): Tracks **all tokens** for a wallet automatically. You only specify the wallet address, and all positions are tracked.
+    
+    Use `positions` for portfolio monitoring and `position` for focused single-token tracking.
+  </Accordion>
+
+  <Accordion title="Are native tokens (ETH, SOL) included in positions?">
+    No, native tokens and stablecoins used as quote tokens are automatically filtered out to focus on actual trading positions (base tokens).
+  </Accordion>
+
+  <Accordion title="How quickly are updates sent after a trade?">
+    Updates are typically delivered within 100ms of trade execution, thanks to our optimized PubSub feed and Redis caching layer.
+  </Accordion>
+
+  <Accordion title="Can I track positions across multiple blockchains?">
+    You need separate subscriptions for each blockchain. Each `positions` subscription tracks all tokens for a wallet on one specific chain.
+  </Accordion>
+
+  <Accordion title="What happens when a position goes to zero?">
+    Positions with zero balance are automatically removed from the positions list in subsequent updates.
+  </Accordion>
+</AccordionGroup>
+

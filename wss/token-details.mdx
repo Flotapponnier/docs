@@ -1,0 +1,511 @@
+---
+title: "Token Details Stream"
+asyncapi: "asyncapi.yaml tokenDetails"
+description: "Real-time WebSocket stream for multiple tokens with enriched market data"
+---
+
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `token-details`
+
+## Subscription Formats
+
+The `token-details` endpoint supports subscribing to multiple token addresses for real-time token data.
+
+### Multiple Tokens Subscription (Recommended)
+
+Subscribe to multiple tokens using the `tokens` array format:
+
+```json
+{
+  "type": "token-details",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "tokens": [
+      {
+        "blockchain": "solana",
+        "address": "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump"
+      },
+      {
+        "blockchain": "solana",
+        "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      },
+      {
+        "blockchain": "evm:1",
+        "address": "0x1234567890abcdef1234567890abcdef12345678"
+      }
+    ],
+    "subscriptionTracking": true
+  }
+}
+```
+
+## Parameters
+
+- **`tokens`** (required): Array of token subscription items, each containing:
+  - **`blockchain`** (required): Blockchain identifier (e.g., `"evm:1"`, `"solana"`)
+  - **`address`** (required): Token address
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
+<Note>
+**Token Addresses Only**: This endpoint is for subscribing to token addresses. For pool-specific subscriptions, use the `market-details` endpoint instead.
+</Note>
+
+## Real-Time Updates
+
+After subscribing, you'll receive real-time updates whenever new trades occur involving the subscribed tokens.
+
+### Real-Time Trade Updates for Token Subscriptions
+
+When trades happen involving subscribed tokens, you'll receive updates with trade information:
+
+```json
+{
+  "pair": "0x1234567890abcdef1234567890abcdef12345678",
+  "date": 1704067800000,
+  "token_price": 0.0234,
+  "token_price_vs": 2500.75,
+  "token_amount": 1000.0,
+  "token_amount_vs": 0.4,
+  "token_amount_usd": 23.40,
+  "type": "sell",
+  "operation": "regular",
+  "blockchain": "Ethereum",
+  "hash": "0xdef789abc012...",
+  "sender": "0x1234567890abcdef...",
+  "token_amount_raw": "1000000000000000000000",
+  "token_amount_raw_vs": "400000000000000000",
+      "tokenData": {
+    // Complete EnrichedTokenData structure with all fields from TokenDetailsOutput.ts
+    "address": "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump",
+    "chainId": "solana",
+    "symbol": "EXAMPLE",
+    "name": "Example Token",
+    "decimals": 9,
+    "id": 12345,
+    "priceUSD": 0.0234,
+    "priceToken": 43.21,
+    "priceTokenString": "43.210000000000000000000000000000",
+    "approximateReserveUSD": 125000.50,
+    "approximateReserveTokenRaw": "5000000000000000000",
+    "approximateReserveToken": 5000.0,
+    "totalSupply": 1000000000,
+    "circulatingSupply": 800000000,
+    "marketCapUSD": 18720000,
+    "marketCapDilutedUSD": 23400000,
+    "logo": "https://example.com/token-logo.png",
+    "exchange": {
+      "name": "Uniswap V3",
+      "logo": "https://example.com/uniswap-logo.png"
+    },
+    "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "source": "uniswap",
+    "sourceFactory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "liquidityUSD": 250000.75,
+    "liquidityMaxUSD": 300000.0,
+    "bonded": false,
+    "bondingPercentage": 0,
+    "bondingCurveAddress": null,
+    "preBondingFactory": null,
+    "poolAddress": null,
+    "top10HoldingsPercentage": 45.6,
+    "top50HoldingsPercentage": 68.9,
+    "top100HoldingsPercentage": 78.5,
+    "top200HoldingsPercentage": 85.2,
+    "devHoldingsPercentage": 15.5,
+    "insidersHoldingsPercentage": 8.2,
+    "bundlersHoldingsPercentage": 2.8,
+    "snipersHoldingsPercentage": 3.1,
+    "proTradersHoldingsPercentage": 5.0,
+    "blockchain": "solana",
+    "type": "token",
+    "deployer": "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump",
+    "bondedAt": null,
+    "athUSD": 0.0456,
+    "atlUSD": 0.0012,
+    "athDate": "2024-12-15T10:30:00.000Z",
+    "atlDate": "2024-12-01T00:00:00.000Z",
+    "priceChange1minPercentage": 0.5,
+    "priceChange5minPercentage": -1.2,
+    "priceChange1hPercentage": 3.4,
+    "priceChange4hPercentage": 2.1,
+    "priceChange6hPercentage": 1.8,
+    "priceChange12hPercentage": 0.9,
+    "priceChange24hPercentage": -5.8,
+    "volume1minUSD": 1250.75,
+    "volume5minUSD": 8500.25,
+    "volume15minUSD": 42500.80,
+    "volume1hUSD": 45000.80,
+    "volume4hUSD": 180000.25,
+    "volume6hUSD": 270000.40,
+    "volume12hUSD": 540000.50,
+    "volume24hUSD": 890000.50,
+    "volumeBuy1minUSD": 675.50,
+    "volumeBuy5minUSD": 4500.25,
+    "volumeBuy15minUSD": 22500.40,
+    "volumeBuy1hUSD": 24000.40,
+    "volumeBuy4hUSD": 96000.15,
+    "volumeBuy6hUSD": 144000.25,
+    "volumeBuy12hUSD": 288000.30,
+    "volumeBuy24hUSD": 480000.25,
+    "volumeSell1minUSD": 575.25,
+    "volumeSell5minUSD": 4000.00,
+    "volumeSell15minUSD": 20000.40,
+    "volumeSell1hUSD": 21000.40,
+    "volumeSell4hUSD": 84000.10,
+    "volumeSell6hUSD": 126000.15,
+    "volumeSell12hUSD": 252000.20,
+    "volumeSell24hUSD": 410000.25,
+    "trades1min": 15,
+    "trades5min": 85,
+    "trades15min": 425,
+    "trades1h": 450,
+    "trades4h": 1800,
+    "trades6h": 2700,
+    "trades12h": 5400,
+    "trades24h": 8900,
+    "buys1min": 8,
+    "buys5min": 45,
+    "buys15min": 225,
+    "buys1h": 240,
+    "buys4h": 960,
+    "buys6h": 1440,
+    "buys12h": 2880,
+    "buys24h": 4800,
+    "sells1min": 7,
+    "sells5min": 40,
+    "sells15min": 200,
+    "sells1h": 210,
+    "sells4h": 840,
+    "sells6h": 1260,
+    "sells12h": 2520,
+    "sells24h": 4100,
+    "buyers1min": 8,
+    "buyers5min": 42,
+    "buyers15min": 210,
+    "buyers1h": 235,
+    "buyers4h": 940,
+    "buyers6h": 1410,
+    "buyers12h": 2820,
+    "buyers24h": 4650,
+    "sellers1min": 7,
+    "sellers5min": 38,
+    "sellers15min": 190,
+    "sellers1h": 205,
+    "sellers4h": 820,
+    "sellers6h": 1230,
+    "sellers12h": 2460,
+    "sellers24h": 3950,
+    "traders1min": 14,
+    "traders5min": 78,
+    "traders15min": 390,
+    "traders1h": 420,
+    "traders4h": 1680,
+    "traders6h": 2520,
+    "traders12h": 5040,
+    "traders24h": 8200,
+    "feesPaid1minUSD": 6.25,
+    "feesPaid5minUSD": 42.5,
+    "feesPaid15minUSD": 212.5,
+    "feesPaid1hUSD": 225.0,
+    "feesPaid4hUSD": 900.0,
+    "feesPaid6hUSD": 1350.0,
+    "feesPaid12hUSD": 2700.0,
+    "feesPaid24hUSD": 4450.0,
+    "totalFeesPaidUSD": 8900.0,
+    "organicTrades1min": 12,
+    "organicTrades5min": 68,
+    "organicTrades15min": 340,
+    "organicTrades1h": 360,
+    "organicTrades4h": 1440,
+    "organicTrades6h": 2160,
+    "organicTrades12h": 4320,
+    "organicTrades24h": 7120,
+    "organicTraders1min": 11,
+    "organicTraders5min": 62,
+    "organicTraders15min": 310,
+    "organicTraders1h": 335,
+    "organicTraders4h": 1340,
+    "organicTraders6h": 2010,
+    "organicTraders12h": 4020,
+    "organicTraders24h": 6560,
+    "organicVolume1minUSD": 1000.6,
+    "organicVolume5minUSD": 6800.2,
+    "organicVolume15minUSD": 34000.64,
+    "organicVolume1hUSD": 36000.64,
+    "organicVolume4hUSD": 144000.2,
+    "organicVolume6hUSD": 216000.32,
+    "organicVolume12hUSD": 432000.4,
+    "organicVolume24hUSD": 712000.4,
+    "organicVolumeBuy1minUSD": 540.32,
+    "organicVolumeBuy5minUSD": 3600.16,
+    "organicVolumeBuy15minUSD": 18000.32,
+    "organicVolumeBuy1hUSD": 19200.32,
+    "organicVolumeBuy4hUSD": 76800.12,
+    "organicVolumeBuy6hUSD": 115200.2,
+    "organicVolumeBuy12hUSD": 230400.24,
+    "organicVolumeBuy24hUSD": 384000.2,
+    "organicVolumeSell1minUSD": 460.28,
+    "organicVolumeSell5minUSD": 3200.04,
+    "organicVolumeSell15minUSD": 16000.32,
+    "organicVolumeSell1hUSD": 16800.32,
+    "organicVolumeSell4hUSD": 67200.08,
+    "organicVolumeSell6hUSD": 100800.12,
+    "organicVolumeSell12hUSD": 201600.16,
+    "organicVolumeSell24hUSD": 328000.2,
+    "organicBuys1min": 6,
+    "organicBuys5min": 36,
+    "organicBuys15min": 180,
+    "organicBuys1h": 192,
+    "organicBuys4h": 768,
+    "organicBuys6h": 1152,
+    "organicBuys12h": 2304,
+    "organicBuys24h": 3840,
+    "organicSells1min": 6,
+    "organicSells5min": 32,
+    "organicSells15min": 160,
+    "organicSells1h": 168,
+    "organicSells4h": 672,
+    "organicSells6h": 1008,
+    "organicSells12h": 2016,
+    "organicSells24h": 3280,
+    "organicBuyers1min": 6,
+    "organicBuyers5min": 33,
+    "organicBuyers15min": 165,
+    "organicBuyers1h": 188,
+    "organicBuyers4h": 752,
+    "organicBuyers6h": 1128,
+    "organicBuyers12h": 2256,
+    "organicBuyers24h": 3720,
+    "organicSellers1min": 6,
+    "organicSellers5min": 30,
+    "organicSellers15min": 152,
+    "organicSellers1h": 164,
+    "organicSellers4h": 656,
+    "organicSellers6h": 984,
+    "organicSellers12h": 1968,
+    "organicSellers24h": 3168,
+    "createdAt": "2024-12-01T00:00:00.000Z",
+    "latestPriceUSD": 0.0234,
+    "holdersCount": 1250,
+    "description": "Example token description",
+    "socials": {
+      "twitter": "https://twitter.com/example",
+      "website": "https://example.com",
+      "telegram": "https://t.me/example",
+      "others": {},
+      "uri": "https://example.com/token"
+    },
+    "security": {
+      "honeypot": false,
+      "rugPull": false,
+      "scam": false,
+      "verified": true
+    },
+    "twitterReusesCount": 0,
+    "twitterRenameCount": 0,
+    "twitterRenameHistory": [],
+    "deployerMigrationsCount": 0,
+    "dexscreenerListed": true,
+    "dexscreenerHeader": null,
+    "dexscreenerAdPaid": false
+  },
+  "subscriptionId": "sub_abc123",
+  "updated": true,
+  "timestamp": 1704067800000
+}
+```
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Token-Details Streams
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "token-details"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "subscriptionId": "sub_abc123"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription with Type
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "token-details",
+    "subscriptionId": "sub_abc123"
+  }
+}
+```
+
+### Unsubscribe from Specific Tokens (Partial Unsubscription)
+
+You can unsubscribe from specific tokens while keeping others active in the same subscription:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "token-details",
+    "tokens": [
+      {
+        "blockchain": "solana",
+        "address": "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump"
+      }
+    ]
+  }
+}
+```
+
+### Unsubscribe from Multiple Specific Tokens
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "token-details",
+    "tokens": [
+      {
+        "blockchain": "solana",
+        "address": "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump"
+      },
+      {
+        "blockchain": "evm:1",
+        "address": "0x1234567890abcdef1234567890abcdef12345678"
+      }
+    ]
+  }
+}
+```
+
+### Unsubscribe from Specific Tokens in a Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "token-details",
+    "subscriptionId": "sub_abc123",
+    "tokens": [
+      {
+        "blockchain": "solana",
+        "address": "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump"
+      }
+    ]
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+
+For partial unsubscriptions without `subscriptionId`, the system will automatically find and modify subscriptions that contain the specified tokens, leaving other tokens in those subscriptions active.
+</Note>
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "token-details",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      tokens: [
+        {
+          blockchain: "solana",
+          address: "3vz82EWYv8xnc7Cm7qSgERcpMeqw92PcX8PBz88npump"
+        }
+      ],
+      subscriptionTracking: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Process token update
+  if (data.tokenData) {
+    console.log("Token update:", data.tokenData);
+    console.log(`Price: $${data.tokenData.priceUSD}`);
+    console.log(`24h Volume: $${data.tokenData.volume24hUSD}`);
+  }
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
+});
+```
+
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+</CardGroup>

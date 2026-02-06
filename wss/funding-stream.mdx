@@ -1,0 +1,263 @@
+---
+title: "Funding Stream"
+asyncapi: "asyncapi.yaml funding"
+description: "Real-time WebSocket stream for wallet funding events and funding rates across supported exchanges"
+---
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `funding`
+
+## Subscription Format
+
+Subscribe to funding rates for specific trading pairs:
+
+```json
+{
+  "type": "funding",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "symbol": "BTC",
+    "quote": "USDT",
+    "interval": 10,
+      "exchange": "binance,bybit,hyperliquid,lighter",
+      "subscriptionId": "funding-feed-1",
+      "subscriptionTracking": true
+  }
+}
+```
+
+## Parameters
+
+- **`symbol`** (required): Trading symbol (e.g., `"BTC"`, `"ETH"`)
+- **`quote`** (optional): Quote asset (e.g., `"USDT"`, `"USD"`). Defaults depend on exchange pairs
+- **`exchange`** (optional): Comma-separated list of exchanges - `binance`, `bybit`, `deribit`, `okx`, `hyperliquid`, `gate`, `lighter`
+- **`interval`** (optional): Refresh interval in seconds for updates
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
+<Note>
+**Supported Exchanges**: Binance, Bybit, Deribit, OKX, Hyperliquid, Gate.io, Lighter
+</Note>
+
+### Hyperliquid DEX (HIP3) Usage
+
+Funding rates from **Hyperliquid** are available **only for HIP3 perpetuals**:
+
+- Prefix the symbol with `dex:` (e.g., `"dex:BTC"`, `"dex:XYZ100"`)
+- Include `exchange: "hyperliquid"` in the payload
+**Example:**
+
+<Note>
+**Gate.io Note**: Uses `usdt` as the settle currency. Contracts are in format `SYMBOL_USDT` (e.g., `BTC_USDT`).
+</Note>
+
+<Note>
+**Lighter Note**: Funding rate sign convention - positive rate means longs pay shorts, negative rate means shorts pay longs. Epoch duration is 1 hour.
+</Note>
+
+```json
+{
+  "type": "funding",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "symbol": "dex:XYZ100",
+    "exchange": "hyperliquid",
+    "subscriptionTracking": true
+  }
+}
+```
+
+## Response Format
+
+Each funding rate update includes data from all requested exchanges:
+
+```json
+{
+  "queryDetails": {
+    "base": "BTC",
+    "quote": "USDT"
+  },
+  "subscriptionId": "funding-feed-1",
+  "timestamp": 1756194263149,
+  "sequence": 1,
+  "binanceFundingRate": {
+    "symbol": "BTCUSDT",
+    "fundingTime": 1756166400000,
+    "fundingRate": 0.00004522,
+    "marketPrice": "110064.58160507",
+    "epochDurationMs": 28800000,
+    "fundingRateCap": 0.3,
+    "fundingRateFloor": -0.3
+  },
+  "bybitFundingRate": {
+    "symbol": "BTCUSDT",
+    "fundingTime": 1756166400000,
+    "fundingRate": 0.0001,
+    "epochDurationMs": 28800000
+  },
+  "hyperliquidFundingRate": {
+    "symbol": "BTC",
+    "fundingTime": 1756188000000,
+    "fundingRate": 0.0000125,
+    "marketPrice": 110301,
+    "epochDurationMs": 3600000
+  },
+  "okxFundingRate": {
+    "symbol": "BTC-USDT-SWAP",
+    "fundingTime": 1756195200000,
+    "fundingRate": 0.0001,
+    "epochDurationMs": 28800000
+  },
+  "gateFundingRate": {
+    "symbol": "BTC_USDT",
+    "fundingTime": 1756166400000,
+    "fundingRate": 0.0001,
+    "epochDurationMs": 28800000
+  },
+  "lighterFundingRate": {
+    "symbol": "BTC",
+    "fundingTime": 1756188000000,
+    "fundingRate": 0.000096,
+    "epochDurationMs": 3600000
+  }
+}
+```
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "funding",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      symbol: "BTC",
+      quote: "USDT",
+      interval: 10,
+      exchange: "binance,bybit,hyperliquid,lighter",
+      subscriptionTracking: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Process funding rate updates
+  if (data.binanceFundingRate) {
+    console.log(`Binance Funding Rate: ${data.binanceFundingRate.fundingRate}`);
+  }
+  
+  if (data.hyperliquidFundingRate) {
+    console.log(`Hyperliquid Funding Rate: ${data.hyperliquidFundingRate.fundingRate}`);
+  }
+  
+  if (data.lighterFundingRate) {
+    console.log(`Lighter Funding Rate: ${data.lighterFundingRate.fundingRate}`);
+  }
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
+});
+```
+
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Streams
+
+To terminate all active subscriptions on the current WebSocket connection:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {}
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+To unsubscribe from a specific subscription using its ID:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "subscriptionId": "your-subscription-id"
+  }
+}
+```
+
+### Unsubscribe from All Funding Streams
+
+To unsubscribe from all funding streams while keeping other stream types active:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "type": "funding"
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+</Note>
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup>

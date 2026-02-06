@@ -1,0 +1,478 @@
+---
+title: "Market Details Stream"
+asyncapi: "asyncapi.yaml marketDetails"
+description: "Real-time WebSocket stream for market pools with enriched data"
+---
+
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `market-details`
+
+## Subscription Formats
+
+The `market-details` endpoint supports subscribing to multiple pool addresses for real-time market data.
+
+### Multiple Pools Subscription (Recommended)
+
+Subscribe to multiple pools using the `pools` array format:
+
+```json
+{
+  "type": "market-details",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "pools": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x1234567890abcdef1234567890abcdef12345678"
+      },
+      {
+        "blockchain": "evm:56",
+        "address": "0xabcdef1234567890abcdef1234567890abcdef12"
+      }
+    ],
+    "subscriptionTracking": true
+  }
+}
+```
+
+## Parameters
+
+- **`pools`** (required): Array of pool subscription items, each containing:
+  - **`blockchain`** (required): Blockchain identifier (e.g., `"evm:1"`, `"solana"`)
+  - **`address`** (required): Pool address
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
+<Note>
+**Pool Addresses Only**: This endpoint is for subscribing to pool addresses. For token-specific subscriptions, use the `token-details` endpoint instead.
+</Note>
+
+
+## Real-Time Updates
+
+After subscribing, you'll receive real-time updates whenever new trades occur on the subscribed pools.
+
+### Real-Time Trade Updates for Pool Subscriptions
+
+When trades happen on subscribed pool addresses, you'll receive updates with trade information:
+
+```json
+{
+  "pair": "0x1234567890abcdef1234567890abcdef12345678",
+  "date": 1704067800000,
+  "token_price": 2500.75,
+  "token_price_vs": 1.0,
+  "token_amount": 1.5,
+  "token_amount_vs": 3751.125,
+  "token_amount_usd": 3751.125,
+  "type": "buy",
+  "operation": "regular",
+  "blockchain": "Ethereum",
+  "hash": "0xabc123def456...",
+  "sender": "0x9876543210fedcba...",
+  "token_amount_raw": "1500000000000000000",
+  "token_amount_raw_vs": "3751125000",
+  "pairData": {
+    // Complete EnrichedPoolData structure with all fields from MarketDetailsOutput.ts
+    "baseToken": {
+      "address": "0xA0b86a33E6441e98f0bE9F9f7D5D2b5c3D8F4e7c",
+      "chainId": "evm:1",
+      "symbol": "WETH",
+      "name": "Wrapped Ether",
+      "decimals": 18,
+      "id": 12345,
+      "priceUSD": 2500.50,
+      "priceToken": 1.0,
+      "priceTokenString": "1.000000000000000000000000000000",
+      "approximateReserveUSD": 90000000.0,
+      "approximateReserveTokenRaw": "36000000000000000000",
+      "approximateReserveToken": 36000.0,
+      "totalSupply": 1000000000000000000000000,
+      "circulatingSupply": 900000000000000000000000,
+      "marketCapUSD": 2250450000000,
+      "marketCapDilutedUSD": 2500500000000,
+      "logo": "https://example.com/weth-logo.png",
+      "exchange": {
+        "name": "Uniswap V3",
+        "logo": "https://example.com/uniswap-logo.png"
+      },
+      "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "source": "uniswap",
+      "sourceFactory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "liquidityUSD": 100000000.0,
+      "liquidityMaxUSD": 120000000.0,
+      "bonded": false,
+      "bondingPercentage": 0,
+      "bondingCurveAddress": null,
+      "preBondingFactory": null,
+      "poolAddress": null,
+      "blockchain": "ethereum",
+      "type": "token",
+      "deployer": "0x1234567890abcdef...",
+      "createdAt": "2020-01-01T00:00:00.000Z",
+      "bondedAt": null,
+      "athUSD": 4878.26,
+      "atlUSD": 88.01,
+      "athDate": "2021-11-10T14:00:00.000Z",
+      "atlDate": "2019-02-08T00:00:00.000Z"
+    },
+    "quoteToken": {
+      "address": "0xB0c87a44F6c95d6E5C4e8g7F9E3D7c2b1A9e8f6d",
+      "chainId": "evm:1",
+      "symbol": "USDC",
+      "name": "USD Coin",
+      "decimals": 6,
+      "id": 67890,
+      "priceUSD": 1.0,
+      "priceToken": 0.0004,
+      "priceTokenString": "0.000400000000000000000000000000",
+      "approximateReserveUSD": 90000000.0,
+      "approximateReserveTokenRaw": "90000000000",
+      "approximateReserveToken": 90000000.0,
+      "totalSupply": 1000000000000000000000000000,
+      "circulatingSupply": 900000000000000000000000000,
+      "marketCapUSD": 1000000000000,
+      "marketCapDilutedUSD": 1000000000000,
+      "logo": "https://example.com/usdc-logo.png",
+      "exchange": {
+        "name": "Circle",
+        "logo": "https://example.com/circle-logo.png"
+      },
+      "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "source": "uniswap",
+      "sourceFactory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+      "liquidityUSD": 100000000.0,
+      "liquidityMaxUSD": 120000000.0,
+      "bonded": false,
+      "bondingPercentage": 0,
+      "bondingCurveAddress": null,
+      "preBondingFactory": null,
+      "poolAddress": null,
+      "blockchain": "ethereum",
+      "type": "token",
+      "deployer": "0x1234567890abcdef...",
+      "createdAt": "2018-01-01T00:00:00.000Z",
+      "bondedAt": null,
+      "athUSD": 1.17,
+      "atlUSD": 0.88,
+      "athDate": "2021-05-19T14:00:00.000Z",
+      "atlDate": "2020-03-13T00:00:00.000Z"
+    },
+    "liquidityUSD": 5000000.25,
+    "blockchain": "Ethereum",
+    "address": "0x1234567890abcdef1234567890abcdef12345678",
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "type": "uniswap-v3",
+    "exchange": {
+      "name": "Uniswap V3",
+      "logo": "https://example.com/uniswap-logo.png"
+    },
+    "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "priceUSD": 2500.50,
+    "priceToken": 0.0004,
+    "priceTokenString": "0.000400000000000000000000000000",
+    "bonded": false,
+    "bondingPercentage": 0,
+    "preBondingPoolAddress": null,
+    "sourceFactory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "top10HoldingsPercentage": 35.2,
+    "top50HoldingsPercentage": 58.7,
+    "top100HoldingsPercentage": 68.9,
+    "top200HoldingsPercentage": 78.3,
+    "devHoldingsPercentage": 12.5,
+    "insidersHoldingsPercentage": 6.8,
+    "bundlersHoldingsPercentage": 1.9,
+    "snipersHoldingsPercentage": 2.1,
+    "proTradersHoldingsPercentage": 5.0,
+    "totalFeesPaidUSD": 150000.0,
+    "priceChange1minPercentage": 0.1,
+    "priceChange5minPercentage": -0.5,
+    "priceChange1hPercentage": 2.3,
+    "priceChange4hPercentage": 1.2,
+    "priceChange6hPercentage": 0.8,
+    "priceChange12hPercentage": -0.3,
+    "priceChange24hPercentage": -3.8,
+    "volume1minUSD": 15000.50,
+    "volume5minUSD": 85000.75,
+    "volume15minUSD": 425000.25,
+    "volume1hUSD": 450000.25,
+    "volume4hUSD": 1800000.0,
+    "volume6hUSD": 2700000.0,
+    "volume12hUSD": 5400000.0,
+    "volume24hUSD": 1500000.75,
+    "volumeBuy1minUSD": 8000.25,
+    "volumeBuy5minUSD": 45000.50,
+    "volumeBuy15minUSD": 225000.15,
+    "volumeBuy1hUSD": 240000.15,
+    "volumeBuy4hUSD": 960000.0,
+    "volumeBuy6hUSD": 1440000.0,
+    "volumeBuy12hUSD": 2880000.0,
+    "volumeBuy24hUSD": 800000.40,
+    "volumeSell1minUSD": 7000.25,
+    "volumeSell5minUSD": 40000.25,
+    "volumeSell15minUSD": 200000.10,
+    "volumeSell1hUSD": 210000.10,
+    "volumeSell4hUSD": 840000.0,
+    "volumeSell6hUSD": 1260000.0,
+    "volumeSell12hUSD": 2520000.0,
+    "volumeSell24hUSD": 700000.35,
+    "trades1min": 25,
+    "trades5min": 125,
+    "trades15min": 625,
+    "trades1h": 650,
+    "trades4h": 2600,
+    "trades6h": 3900,
+    "trades12h": 7800,
+    "trades24h": 12000,
+    "buys1min": 13,
+    "buys5min": 68,
+    "buys15min": 340,
+    "buys1h": 340,
+    "buys4h": 1360,
+    "buys6h": 2040,
+    "buys12h": 4080,
+    "buys24h": 6500,
+    "sells1min": 12,
+    "sells5min": 57,
+    "sells15min": 285,
+    "sells1h": 310,
+    "sells4h": 1240,
+    "sells6h": 1860,
+    "sells12h": 3720,
+    "sells24h": 5500,
+    "buyers1min": 13,
+    "buyers5min": 65,
+    "buyers15min": 325,
+    "buyers1h": 325,
+    "buyers4h": 1300,
+    "buyers6h": 1950,
+    "buyers12h": 3900,
+    "buyers24h": 6200,
+    "sellers1min": 12,
+    "sellers5min": 55,
+    "sellers15min": 275,
+    "sellers1h": 295,
+    "sellers4h": 1180,
+    "sellers6h": 1770,
+    "sellers12h": 3540,
+    "sellers24h": 5200,
+    "traders1min": 24,
+    "traders5min": 115,
+    "traders15min": 575,
+    "traders1h": 595,
+    "traders4h": 2380,
+    "traders6h": 3570,
+    "traders12h": 7140,
+    "traders24h": 10400,
+    "feesPaid1minUSD": 75.0,
+    "feesPaid5minUSD": 425.0,
+    "feesPaid15minUSD": 2125.0,
+    "feesPaid1hUSD": 2250.0,
+    "feesPaid4hUSD": 9000.0,
+    "feesPaid6hUSD": 13500.0,
+    "feesPaid12hUSD": 27000.0,
+    "feesPaid24hUSD": 75000.0,
+    "extraData": {
+      "customField1": "value1",
+      "customField2": 123,
+      "customField3": true
+    }
+  },
+  "subscriptionId": "sub_def456",
+  "updated": true,
+  "timestamp": 1704067800000
+}
+```
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Market-Details Streams
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "market-details"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "subscriptionId": "sub_def456"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription with Type
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "market-details",
+    "subscriptionId": "sub_def456"
+  }
+}
+```
+
+### Unsubscribe from Specific Pools (Partial Unsubscription)
+
+You can unsubscribe from specific pools while keeping others active in the same subscription:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "market-details",
+    "pools": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x1234567890abcdef1234567890abcdef12345678"
+      }
+    ]
+  }
+}
+```
+
+### Unsubscribe from Multiple Specific Pools
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "market-details",
+    "pools": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x1234567890abcdef1234567890abcdef12345678"
+      },
+      {
+        "blockchain": "evm:56",
+        "address": "0xabcdef1234567890abcdef1234567890abcdef12"
+      }
+    ]
+  }
+}
+```
+
+### Unsubscribe from Specific Pools in a Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "market-details",
+    "subscriptionId": "sub_def456",
+    "pools": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x1234567890abcdef1234567890abcdef12345678"
+      }
+    ]
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+
+For partial unsubscriptions without `subscriptionId`, the system will automatically find and modify subscriptions that contain the specified pools, leaving other pools in those subscriptions active.
+</Note>
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "market-details",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      pools: [
+        {
+          blockchain: "evm:1",
+          address: "0x1234567890abcdef1234567890abcdef12345678"
+        }
+      ],
+      subscriptionTracking: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Process market update
+  if (data.pairData) {
+    console.log("Market update:", data.pairData);
+    console.log(`Liquidity: $${data.pairData.liquidityUSD}`);
+  }
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
+});
+```
+
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+</CardGroup>

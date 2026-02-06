@@ -1,0 +1,1753 @@
+---
+title: "Pulse Stream V2 (Pool-Based)"
+asyncapi: "asyncapi.yaml pulseV2PoolBased"
+description: "Advanced WebSocket stream for real-time pool monitoring with pool-based subscriptions"
+---
+
+<Tip> 
+  **Token-Based Version Available**: The Token-Based version for token statistics is available here: [Pulse Stream V2 Token-Based](/indexing-stream/stream/websocket/pulse-stream-v2)
+</Tip>
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Real-time vs HTTP
+
+<CardGroup>
+  <Card title="🔗 GET Method" icon="link" href="/rest-api-reference/endpoint/pulse-get">
+    **Available in HTTP queries**
+    
+    Use the same filtering system in HTTP GET requests for simple queries.
+  </Card>
+
+  <Card title="📝 POST Method" icon="code" href="/rest-api-reference/endpoint/pulse-post">
+    **Available in HTTP queries**
+    
+    Use the same filtering system in HTTP POST requests for advanced configurations.
+  </Card>
+
+</CardGroup>
+
+## Overview
+
+Pulse Stream V2 introduces a new payload-based architecture that allows you to manage multiple views simultaneously with enhanced control over data flow and view management. Unlike the previous version, V2 sends separate payloads for each view and provides more granular control over subscriptions.
+
+## Key Features
+
+- **Multiple Views**: Subscribe to multiple custom views simultaneously
+- **Payload-based Architecture**: Each view receives its own payload with view-specific data
+- **View Management**: Pause/unpause individual views without disconnecting
+- **Enhanced Filtering**: Advanced filtering capabilities with real-time updates
+- **Personalized IDs**: Track multiple client sessions with custom identifiers
+- **Factory Name Resolution**: Automatic resolution of factory names to addresses
+
+## Endpoint Details
+
+- URL: wss://api.mobula.io
+- Message format: JSON string
+- Architecture: Payload-based with view management
+
+## Basic Usage
+
+### Default Model Configuration
+
+The simplest way to get started is using the default model, which automatically generates three predefined views without needing to specify them:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "model": "default",
+    "chainId": ["evm:8453", "solana:solana"],
+    "poolTypes": ["moonshot-evm", "pumpfun"],
+    "compressed": false
+  }
+}
+```
+
+This configuration automatically creates three views:
+
+1. **`new`** - New tokens sorted by creation date (descending)
+   - Filters: `created_at: { not: null }`
+   - Sort: `created_at` descending
+   - Limit: 50 pools
+
+2. **`bonding`** - Tokens with market cap and volume activity
+   - Filters: `market_cap: { not: null }`, `volume_1h: { gte: 10 }`
+   - Sort: `market_cap` descending
+   - Limit: 50 pools
+
+3. **`bonded`** - Tokens with bonding curves
+   - Filters: `created_at: { not: null }`, `bondingCurveAddress: { not: null }`
+   - Sort: `created_at` descending
+   - Limit: 50 pools
+
+### Custom Views Configuration
+
+For more control, you can define custom views:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": false,
+    "views": [
+      {
+        "name": "new-tokens",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "created_at",
+        "sortOrder": "desc",
+        "limit": 50
+      },
+      {
+        "name": "trending",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 30
+      }
+    ]
+  }
+}
+```
+
+### Legacy Configuration (Auto-Generated Views)
+
+You can also use the legacy format without specifying `model: "default"`. When you provide `chainId` or `poolTypes` without any `views`, the system automatically generates the three default views:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "chainId": ["evm:8453", "solana:solana"],
+    "poolTypes": ["moonshot-evm", "pumpfun"]
+  }
+}
+```
+
+This is equivalent to using `"model": "default"` and will generate the same three views (`new`, `bonding`, `bonded`).
+
+### Subscription ID Support
+
+Add a subscription identifier to track your connection:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "subscriptionId": "user_123_session_abc",
+    "views": [
+      {
+        "name": "my-view",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"]
+      }
+    ]
+  }
+}
+```
+
+## Data Compression
+
+The Pulse Stream V2 API supports gzip compression for the init message to reduce bandwidth usage. When enabled, the entire message (including `type`, `payload`, `subscriptionId`, and `compressed` fields) will be compressed using gzip compression.
+
+### Enabling Compression
+
+To enable compression, set the `compressed` parameter to `true` in your payload:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": true,
+    "model": "default",
+    "chainId": ["evm:8453", "solana:solana"],
+    "poolTypes": ["moonshot-evm", "pumpfun"]
+  }
+}
+```
+
+### Handling Compressed Messages
+
+When compression is enabled, the entire message will be sent as gzip compressed binary data instead of JSON string. You need to decompress the message before parsing it as JSON.
+
+**Important**: When a message is compressed, you cannot access the `type` and `compressed` properties before decompression, as they are part of the compressed payload.
+
+#### JavaScript/Node.js Example
+
+```javascript
+import { gunzip } from 'node:zlib';
+import { promisify } from 'node:util';
+
+const gunzipAsync = promisify(gunzip);
+
+// Function to parse messages (handles compression)
+async function parseMessage(data) {
+  try {
+    // Convert to Buffer safely
+    let buffer;
+    if (Buffer.isBuffer(data)) {
+      buffer = data;
+    } else if (data instanceof Uint8Array) {
+      buffer = Buffer.from(data);
+    } else {
+      buffer = Buffer.from(data);
+    }
+    
+    // Try to parse as JSON first (uncompressed message)
+    try {
+      const message = JSON.parse(buffer.toString());
+      console.log('✅ Message parsed as JSON (uncompressed)');
+      return message;
+    } catch (parseError) {
+      // If JSON parsing fails, try to decompress
+      try {
+        const decompressed = await gunzipAsync(buffer);
+        const jsonString = decompressed.toString('utf8');
+        const message = JSON.parse(jsonString);
+        console.log('✅ Message decompressed and parsed (compressed)');
+        return message;
+      } catch (decompressError) {
+        console.error('❌ Failed to parse or decompress message:', decompressError);
+        return null;
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error parsing message:', error);
+    return null;
+  }
+}
+
+// Handle incoming messages
+ws.on('message', async (data) => {
+  const message = await parseMessage(data);
+  
+  if (message) {
+    // Now you can access message.type and message.compressed
+    console.log('Message type:', message.type);
+    console.log('Message compressed:', message.compressed);
+    console.log('Received message:', message);
+  }
+});
+```
+
+#### Python Example
+
+```python
+import gzip
+import json
+import websocket
+
+def parse_message(data):
+    try:
+        # Convert to bytes safely
+        if isinstance(data, bytes):
+            buffer = data
+        else:
+            buffer = bytes(data)
+        
+        # Try to parse as JSON first (uncompressed message)
+        try:
+            message = json.loads(buffer.decode('utf8'))
+            print('✅ Message parsed as JSON (uncompressed)')
+            return message
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try to decompress
+            try:
+                decompressed = gzip.decompress(buffer)
+                json_string = decompressed.decode('utf8')
+                message = json.loads(json_string)
+                print('✅ Message decompressed and parsed (compressed)')
+                return message
+            except Exception as decompress_error:
+                print('❌ Failed to parse or decompress message:', decompress_error)
+                return None
+    except Exception as error:
+        print('❌ Error parsing message:', error)
+        return None
+
+def on_message(ws, message):
+    parsed_message = parse_message(message)
+    
+    if parsed_message:
+        # Now you can access parsed_message['type'] and parsed_message['compressed']
+        print('Message type:', parsed_message.get('type'))
+        print('Message compressed:', parsed_message.get('compressed'))
+        print('Received message:', parsed_message)
+
+# Connect to WebSocket
+ws = websocket.WebSocketApp("wss://api.mobula.io",
+                           on_message=on_message)
+ws.run_forever()
+```
+
+### Compression Benefits
+
+- **Reduced Bandwidth**: Gzip compressed messages can be 60-80% smaller
+- **Faster Transmission**: Smaller payloads transmit faster over the network
+- **Lower Costs**: Reduced bandwidth usage can lower hosting costs
+- **Better Performance**: Especially beneficial for large init payloads
+- **Standard Compression**: Uses industry-standard gzip compression
+
+### When to Use Compression
+
+- **Large init payloads**: When views contain many pools or complex data
+- **Limited bandwidth**: When network bandwidth is constrained
+- **Mobile applications**: To reduce data usage on mobile devices
+- **High-frequency applications**: When processing many messages per second
+
+### Compression Considerations
+
+- **Standard Implementation**: Uses gzip compression for optimal compression ratio
+- **Init Only**: Only affects the initial message, not real-time updates
+- **Compatibility**: Ensure your client can handle gzip decompression
+- **CPU Overhead**: Compression/decompression requires additional CPU processing
+- **Message Structure**: The entire message (including `type` and `compressed` fields) is compressed together
+
+## View Configuration
+
+<Tip>For complete filter documentation including all available fields, operators, and examples, see [Filter Details](/indexing-stream/stream/websocket/filters-details).</Tip>
+
+### View Structure
+
+Each view in the `views` array supports the following configuration:
+
+```json
+{
+  "name": "view-name",
+  "chainId": ["evm:8453", "solana:solana"],
+  "poolTypes": ["pumpfun", "moonshot-evm"],
+  "sortBy": "volume_1h",
+  "sortOrder": "desc",
+  "limit": 30,
+  "offset": 0,
+  "excludeBonded": false,
+  "filters": {
+    "market_cap": { "gte": 1000 },
+    "volume_1h": { "gte": 500 },
+    "pools": {
+      "factory": { "equals": "uniswap-v2" },
+      "sourceFactory": { "equals": "FbKf76ucsQssF7XZBuzScdJfugtsSKwZFYztKsMEhWZM" }
+    }
+  }
+}
+```
+
+### View Parameters
+
+- **`name`** (string, required): Unique identifier for the view
+- **`model`** (string, optional): Predefined model type (`new`, `bonding`, `bonded`) - overrides custom filters
+- **`chainId`** (string | string[]): Blockchains to monitor
+- **`poolTypes`** (string | string[]): Pool types/factories to monitor
+- **`assetListed`** (boolean, optional): Filter pools where base token has verified metadata (has an `assetId`)
+- **`sortBy`** (string): Sort field (see [Filter Details](/indexing-stream/stream/websocket/filters-details))
+- **`sortOrder`** (string): Sort order (`asc` or `desc`)
+- **`limit`** (number): Number of results per view (max: 100)
+- **`offset`** (number): Offset for pagination
+- **`excludeBonded`** (boolean): Exclude bonded pools
+- **`filters`** (object): Filter configuration
+
+### Payload Parameters
+
+- **`compressed`** (boolean, optional): Enable gzip compression for all messages (default: `false`)
+- **`subscriptionId`** (string, optional): Custom subscription identifier
+- **`model`** (string, optional): Default model type (`default`)
+- **`chainId`** (string | string[]): Blockchains to monitor
+- **`poolTypes`** (string | string[]): Pool types/factories to monitor
+- **`excludeDuplicates`** (boolean, optional): Exclude duplicate pools (default: `true`)
+- **`views`** (array): Array of view configurations
+
+### Pool Filters
+
+The `pools` object within filters supports the following fields:
+
+- **`factory`** (string): Filter by AMM factory address or name
+- **`sourceFactory`** (string): Filter by bonding curve factory address or name (for bonded pools)
+- **`type`** (string): Filter by pool type
+
+### Available Filter Fields
+
+Based on the `PoolsStatsRealTime` schema, you can filter on the following fields:
+
+#### Price & Market Data
+- **`price`**: Current pool price
+- **`market_cap`**: Market capitalization
+- **`latest_price`**: Latest price
+- **`latest_market_cap`**: Latest market cap
+- **`holders_count`**: Number of token holders
+- **`liquidity`**: Available liquidity
+
+#### Volume & Trading Data
+- **`volume_1min`** through **`volume_24h`**: Volume metrics for different timeframes
+- **`volume_buy_1min`** through **`volume_buy_24h`**: Buy volume metrics
+- **`volume_sell_1min`** through **`volume_sell_24h`**: Sell volume metrics
+- **`trades_1min`** through **`trades_24h`**: Trade count metrics
+- **`buys_1min`** through **`buys_24h`**: Buy transaction counts
+- **`sells_1min`** through **`sells_24h`**: Sell transaction counts
+
+#### Participant Analytics
+- **`buyers_1min`** through **`buyers_24h`**: Unique buyer counts
+- **`sellers_1min`** through **`sellers_24h`**: Unique seller counts
+- **`traders_1min`** through **`traders_24h`**: Unique trader counts
+- **`fees_paid_1min`** through **`fees_paid_24h`**: Fees paid metrics
+
+#### Holdings Analysis
+- **`dev_holdings_percentage`**: Developer holdings percentage
+- **`insiders_holdings_percentage`**: Insider holdings percentage
+- **`snipers_holdings_percentage`**: Sniper holdings percentage
+- **`bundlers_holdings_percentage`**: Bundler holdings percentage
+- **`pro_traders_holdings_percentage`**: Professional trader holdings percentage
+- **`top_10_holdings_percentage`**: Top 10 holders percentage
+- **`top_50_holdings_percentage`**: Top 50 holders percentage
+- **`top_100_holdings_percentage`**: Top 100 holders percentage
+- **`top_200_holdings_percentage`**: Top 200 holders percentage
+
+#### Bonding & Migration Data
+- **`bonding_percentage`**: Bonding curve completion percentage
+- **`deployer_migrations`**: Deployer migration count
+- **`twitter_reuses_count`**: Twitter reuse count
+
+#### Timestamps
+- **`created_at`**: Pool creation timestamp
+- **`latest_trade_date`**: Last trade timestamp
+
+
+## Message Types
+
+### Initialization Messages
+
+#### Init Message
+Sent when a view is first created or when reconnecting:
+
+```json
+{
+  "type": "init",
+  "payload": {
+    "view-name": {
+      "data": [
+        {
+          "price": 0.000123,
+          "pair": {
+            "token0": {...},
+            "token1": {...}
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+#### Sync Message
+Sent periodically to keep views synchronized:
+
+```json
+{
+  "type": "sync",
+  "payload": {
+    "view-name": {
+      "data": [
+        {
+          "price": 0.000123,
+          "pair": {
+            "token0": {...},
+            "token1": {...}
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+### Real-time Update Messages
+
+#### New Pool Message
+Sent when a new pool is added to a view:
+
+```json
+{
+  "type": "new-pool",
+  "payload": {
+    "viewName": "view-name",
+    "pool": {
+      "price": 0.000123,
+      "pair": {
+        "token0": {...},
+        "token1": {...}
+      }
+    }
+  }
+}
+```
+
+#### Pool Update Message
+Sent when pool data is updated:
+
+```json
+{
+  "type": "update-pool",
+  "payload": {
+    "viewName": "view-name",
+    "pool": {
+      "price": 0.000124,
+      "pair": {
+        "token0": {...},
+        "token1": {...}
+      }
+    }
+  }
+}
+```
+
+#### Pool Remove Message
+Sent when a pool is removed from a view:
+
+```json
+{
+  "type": "remove-pool",
+  "payload": {
+    "viewName": "view-name",
+    "poolAddress": "0x..."
+  }
+}
+```
+
+## View Management
+
+### Pause Views
+
+Pause specific views to reduce bandwidth usage:
+
+```json
+{
+  "type": "pulse-pause",
+  "payload": {
+    "action": "pause",
+    "views": ["view-name-1", "view-name-2"]
+  }
+}
+```
+
+### Unpause Views
+
+Resume paused views:
+
+```json
+{
+  "type": "pulse-pause",
+  "payload": {
+    "action": "unpause",
+    "views": ["view-name-1"]
+  }
+}
+```
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribe from Stream
+
+To unsubscribe from all subscriptions, send:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {}
+}
+```
+
+## Unsubscribe from Specific Views or Subscriptions
+
+You can unsubscribe from specific views, subscription IDs, or use personalized IDs. Send one of the following:
+
+### Unsubscribe from Specific View
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {
+    "type": "pulse-v2",
+    "viewName": "new"
+  }
+}
+```
+
+### Unsubscribe from Subscription ID
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {
+    "type": "pulse-v2",
+    "subscriptionId": "user_123_session_abc"
+  }
+}
+```
+
+### Unsubscribe using Personalized ID
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {
+    "type": "pulse-v2",
+    "personalizedId": "my-session-123"
+  }
+}
+```
+
+### Unsubscribe Parameters
+
+- **`type`** (string, required): Must be `"pulse-v2"` for pulse stream v2 subscriptions
+- **`viewName`** (string, optional): Name of the specific view to unsubscribe from
+  - Must match one of the view names from your original subscription
+  - Examples: `"new"`, `"bonding"`, `"bonded"`, or custom view names
+- **`subscriptionId`** (string, optional): Subscription ID to unsubscribe from
+  - Removes all views associated with this subscription ID
+  - Must match the subscription ID used during connection
+- **`personalizedId`** (string, optional): Personalized ID to unsubscribe from
+  - Automatically transformed to `subscriptionId` internally
+  - Must match the personalized ID used during connection
+
+**Note**: You must provide either `viewName`, `subscriptionId`, OR `personalizedId`, not multiple.
+
+### Unsubscribe Examples
+
+#### Unsubscribe from specific view
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {
+    "type": "pulse-v2",
+    "viewName": "new"
+  }
+}
+```
+
+#### Unsubscribe from subscription ID
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {
+    "type": "pulse-v2",
+    "subscriptionId": "user_123_session_abc"
+  }
+}
+```
+
+#### Unsubscribe using personalized ID
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "API-KEY",
+  "payload": {
+    "type": "pulse-v2",
+    "personalizedId": "my-session-123"
+  }
+}
+```
+
+### Response Examples
+
+#### Success Response (View)
+```json
+{
+  "event": "unsubscribed",
+  "type": "pulse-v2",
+  "subscriptionId": null,
+  "message": "Successfully unsubscribed from pulse-v2"
+}
+```
+
+#### Success Response (Subscription)
+```json
+{
+  "event": "unsubscribed",
+  "type": "pulse-v2",
+  "subscriptionId": "user_123_session_abc",
+  "message": "Successfully unsubscribed from pulse-v2 (user_123_session_abc)"
+}
+```
+
+#### Error Response
+```json
+{
+  "event": "error",
+  "type": "pulse-v2",
+  "subscriptionId": "unknown-id",
+  "message": "No subscription found for unknown-id"
+}
+```
+
+<Tip>
+Unsubscribing from a specific view keeps your connection active and other views subscribed. Unsubscribing from a subscription ID or personalized ID removes all views associated with that subscription.
+</Tip>
+
+## Advanced Examples
+
+### Multi-View Trading Analysis
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": true,
+    "subscriptionId": "trading-analysis-001",
+    "views": [
+      {
+        "name": "high-volume-new",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "volume_1h": { "gte": 1000 },
+          "market_cap": { "gte": 5000, "lte": 50000 },
+          "buys_1h": { "gte": 20 },
+          "sellers_1h": { "lte": 10 }
+        }
+      },
+      {
+        "name": "bonding-tokens",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "market_cap",
+        "sortOrder": "desc",
+        "limit": 50,
+        "excludeBonded": true,
+        "filters": {
+          "bonding_percentage": { "gte": 50 },
+          "dev_holdings_percentage": { "lte": 10 },
+          "top_10_holdings_percentage": { "lte": 30 }
+        }
+      },
+      {
+        "name": "trending-meme",
+        "chainId": ["evm:8453", "solana:solana"],
+        "poolTypes": ["moonshot-evm", "pumpfun"],
+        "sortBy": "price_change_1h",
+        "sortOrder": "desc",
+        "limit": 25,
+        "filters": {
+          "pattern": "meme",
+          "price_change_1h": { "gte": 10 },
+          "volume_1h": { "gte": 500 },
+          "min_socials": 2
+        }
+      }
+    ]
+  }
+}
+```
+
+### Bonding Curve Factory Filtering
+
+Filter pools by their bonding curve factory:
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "views": [
+      {
+        "name": "pumpfun-bonding-curves",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 50,
+        "filters": {
+          "pools": {
+            "sourceFactory": { "in": ["FbKf76ucsQssF7XZBuzScdJfugtsSKwZFYztKsMEhWZM"] }
+          },
+          "bonded": { "equals": true },
+          "volume_1h": { "gte": 100 }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Holdings Analysis Dashboard
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "personalizedId": "holdings-dashboard",
+    "views": [
+      {
+        "name": "low-concentration",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "holders_count",
+        "sortOrder": "desc",
+        "limit": 40,
+        "filters": {
+          "top_10_holdings_percentage": { "lte": 20 },
+          "top_50_holdings_percentage": { "lte": 40 },
+          "top_100_holdings_percentage": { "lte": 60 },
+          "top_200_holdings_percentage": { "lte": 75 },
+          "snipers_holdings_percentage": { "lte": 5 },
+          "holders_count": { "gte": 100 }
+        }
+      },
+      {
+        "name": "high-activity",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "traders_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "traders_1h": { "gte": 50 },
+          "fees_paid_1h": { "gte": 100 },
+          "volume_1h": { "gte": 2000 },
+          "twitter_reuses_count": { "equals": 0 }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Factory-Specific Monitoring
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": false,
+    "views": [
+      {
+        "name": "uniswap-v2-trending",
+        "chainId": ["evm:1", "evm:56"],
+        "poolTypes": ["uniswap-v2"],
+        "sortBy": "volume_24h",
+        "sortOrder": "desc",
+        "limit": 50,
+        "filters": {
+          "pools": {
+            "factory": { "equals": "uniswap-v2" }
+          },
+          "volume_24h": { "gte": 10000 },
+          "liquidity": { "gte": 50000 }
+        }
+      },
+      {
+        "name": "pumpfun-bonded",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "created_at",
+        "sortOrder": "desc",
+        "limit": 100,
+        "filters": {
+          "pools": {
+            "type": { "equals": "pumpfun" },
+            "sourceFactory": { "equals": "pumpfun-bonding" }
+          },
+          "bonded": { "equals": true },
+          "created_at": { "gte": "2024-01-01T00:00:00Z" }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Asset Listed Tokens Filtering
+
+Filter for pools where the base token has verified metadata (has an `assetId`):
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": false,
+    "subscriptionId": "asset-listed-001",
+    "views": [
+      {
+        "name": "listed-high-volume",
+        "chainId": ["evm:8453"],
+        "assetListed": true,
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 50,
+        "filters": {
+          "volume_1h": { "gte": 1000 },
+          "market_cap": { "gte": 10000 },
+          "pools": {
+            "factory": { "in": ["aerodrome", "uniswap-v2"] }
+          }
+        }
+      },
+      {
+        "name": "listed-trending",
+        "chainId": ["evm:1", "evm:8453"],
+        "assetListed": true,
+        "sortBy": "price_change_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "price_change_1h": { "gte": 5 },
+          "volume_1h": { "gte": 500 }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Keyword-Based Filtering
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": true,
+    "subscriptionId": "keyword-filtering-001",
+    "views": [
+      {
+        "name": "meme-tokens",
+        "chainId": ["evm:8453", "solana:solana"],
+        "poolTypes": ["moonshot-evm", "pumpfun"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 40,
+        "filters": {
+          "includeKeywords": ["meme", "doge", "cat", "pepe", "shib"],
+          "excludeKeywords": ["scam", "fake", "test", "rug"],
+          "volume_1h": { "gte": 500 },
+          "market_cap": { "gte": 1000 }
+        }
+      },
+      {
+        "name": "ai-tokens",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "price_change_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "includeKeywords": ["ai", "artificial", "intelligence", "gpt", "neural"],
+          "excludeKeywords": ["scam", "fake"],
+          "price_change_1h": { "gte": 5 },
+          "volume_1h": { "gte": 200 }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Timeframe-Based Filtering
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": false,
+    "subscriptionId": "timeframe-filtering-001",
+    "views": [
+      {
+        "name": "recent-tokens",
+        "chainId": ["evm:8453", "solana:solana"],
+        "poolTypes": ["moonshot-evm", "pumpfun"],
+        "sortBy": "created_at",
+        "sortOrder": "desc",
+        "limit": 50,
+        "filters": {
+          "created_at_offset": {
+            "gte": 1800,
+            "lte": 7200
+          },
+          "volume_1h": { "gte": 100 }
+        }
+      },
+      {
+        "name": "active-trading",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 40,
+        "filters": {
+          "latest_trade_date": {
+            "gte": "2024-01-01T00:00:00Z"
+          },
+          "volume_1h": { "gte": 1000 },
+          "trades_1h": { "gte": 10 }
+        }
+      },
+      {
+        "name": "new-tokens-30min",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "created_at",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "created_at_offset": {
+            "lte": 1800
+          },
+          "volume_1h": { "gte": 50 }
+        }
+      }
+    ]
+  }
+}
+```
+
+### Volume Buy/Sell Analysis
+
+```json
+{
+  "type": "pulse-v2",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "compressed": true,
+    "subscriptionId": "volume-analysis-001",
+    "views": [
+      {
+        "name": "buy-pressure",
+        "chainId": ["evm:8453"],
+        "poolTypes": ["moonshot-evm"],
+        "sortBy": "volume_buy_1h",
+        "sortOrder": "desc",
+        "limit": 30,
+        "filters": {
+          "volume_buy_1h": { "gte": 500 },
+          "volume_sell_1h": { "lte": 200 },
+          "price_change_1h": { "gte": 5 }
+        }
+      },
+      {
+        "name": "sell-pressure",
+        "chainId": ["solana:solana"],
+        "poolTypes": ["pumpfun"],
+        "sortBy": "volume_sell_1h",
+        "sortOrder": "desc",
+        "limit": 25,
+        "filters": {
+          "volume_sell_1h": { "gte": 300 },
+          "volume_buy_1h": { "lte": 100 },
+          "price_change_1h": { "lte": -5 }
+        }
+      },
+      {
+        "name": "balanced-volume",
+        "chainId": ["evm:8453", "solana:solana"],
+        "poolTypes": ["moonshot-evm", "pumpfun"],
+        "sortBy": "volume_1h",
+        "sortOrder": "desc",
+        "limit": 40,
+        "filters": {
+          "volume_buy_1h": { "gte": 200 },
+          "volume_sell_1h": { "gte": 200 },
+          "volume_buy_1h": { "lte": 1000 },
+          "volume_sell_1h": { "lte": 1000 }
+        }
+      }
+    ]
+  }
+}
+```
+
+## Data Model
+
+### Pool Data Schema
+
+Each pool in the response follows the `PoolDataSchema` structure with comprehensive trading and analysis data:
+
+```typescript
+interface PoolDataSchema {
+  // Price Data
+  price: number;
+  price_change_1min: number;
+  price_change_5min: number;
+  price_change_1h: number;
+  price_change_4h: number;
+  price_change_6h: number;
+  price_change_12h: number;
+  price_change_24h: number;
+  
+  // Historical Prices
+  price_1min_ago: number;
+  price_5min_ago: number;
+  price_1h_ago: number;
+  price_4h_ago: number;
+  price_6h_ago: number;
+  price_12h_ago: number;
+  price_24h_ago: number;
+  
+  // Market Data
+  market_cap: number;
+  created_at: Date | null;
+  holders_count: number;
+  latest_trade_date: Date | null;
+  latest_price: number;
+  
+  // Volume Data
+  volume_1min: number;
+  volume_5min: number;
+  volume_15min: number;
+  volume_1h: number;
+  volume_4h: number;
+  volume_6h: number;
+  volume_12h: number;
+  volume_24h: number;
+  
+  // Volume Buy/Sell Data
+  volume_buy_1min: number;
+  volume_buy_5min: number;
+  volume_buy_15min: number;
+  volume_buy_1h: number;
+  volume_buy_4h: number;
+  volume_buy_6h: number;
+  volume_buy_12h: number;
+  volume_buy_24h: number;
+  volume_sell_1min: number;
+  volume_sell_5min: number;
+  volume_sell_15min: number;
+  volume_sell_1h: number;
+  volume_sell_4h: number;
+  volume_sell_6h: number;
+  volume_sell_12h: number;
+  volume_sell_24h: number;
+  
+  // Trading Activity
+  trades_1min: number;
+  trades_5min: number;
+  trades_15min: number;
+  trades_1h: number;
+  trades_4h: number;
+  trades_6h: number;
+  trades_12h: number;
+  trades_24h: number;
+  
+  // Buy/Sell Breakdown
+  buys_1min: number;
+  buys_5min: number;
+  buys_15min: number;
+  buys_1h: number;
+  buys_4h: number;
+  buys_6h: number;
+  buys_12h: number;
+  buys_24h: number;
+  
+  sells_1min: number;
+  sells_5min: number;
+  sells_15min: number;
+  sells_1h: number;
+  sells_4h: number;
+  sells_6h: number;
+  sells_12h: number;
+  sells_24h: number;
+  
+  // Unique Participants
+  buyers_1min: number;
+  buyers_5min: number;
+  buyers_15min: number;
+  buyers_1h: number;
+  buyers_4h: number;
+  buyers_6h: number;
+  buyers_12h: number;
+  buyers_24h: number;
+  
+  sellers_1min: number;
+  sellers_5min: number;
+  sellers_15min: number;
+  sellers_1h: number;
+  sellers_4h: number;
+  sellers_6h: number;
+  sellers_12h: number;
+  sellers_24h: number;
+  
+  // Traders (Unique participants who both bought and sold)
+  traders_1min: number;
+  traders_5min: number;
+  traders_15min: number;
+  traders_1h: number;
+  traders_4h: number;
+  traders_6h: number;
+  traders_12h: number;
+  traders_24h: number;
+  
+  // Fees Paid
+  fees_paid_1min: number;
+  fees_paid_5min: number;
+  fees_paid_15min: number;
+  fees_paid_1h: number;
+  fees_paid_4h: number;
+  fees_paid_6h: number;
+  fees_paid_12h: number;
+  fees_paid_24h: number;
+  
+  // Token Information
+  source: string | null;
+  deployer: string | null;
+  tokenSymbol: string | null;
+  tokenName: string | null;
+  dexscreenerListed: boolean | null;
+  description: string | null;
+  
+  // Holdings Analysis
+  devHoldingsPercentage: number;
+  insidersHoldingsPercentage: number;
+  snipersHoldingsPercentage: number;
+  bundlersHoldingsPercentage: number;
+  deployerMigrations: number;
+  twitterReusesCount: number;
+  proTradersHolding: number;
+  top10HoldingsPercentage: number;
+  top50HoldingsPercentage: number;
+  top100HoldingsPercentage: number;
+  top200HoldingsPercentage: number;
+  
+  // Pair Information
+  pair: Pair;
+  bondingPercentage: number;
+  bonded: boolean;
+  bondingCurveAddress: string | null;
+  sourceFactory: string | null;
+  socials: {
+    twitter: string | null;
+    website: string | null;
+    telegram: string | null;
+    others: Record<string, unknown> | null;
+    uri: string | undefined;
+  };
+  holders_list: Array<{
+    address: string;
+    balance: number;
+    nativeBalance: number;
+    balanceUsd: number;
+    boughtAmount: number;
+    soldAmount: number;
+    pnl: number;
+  }>;
+}
+
+interface Pair {
+  token0: Token;
+  token1: Token;
+  volume24h: number;
+  liquidity: number;
+  blockchain: string;
+  address: string;
+  createdAt: Date | null;
+  type: string;
+  baseToken: string;
+  exchange: {
+    name: string;
+    logo: string;
+  };
+  factory: string | null;
+  quoteToken: string;
+  price: number;
+  priceToken: number;
+  priceTokenString: string;
+  bonded: boolean;
+  bondingPercentage: number | null;
+  bondingCurveAddress: string | null;
+  sourceFactory: string | null;
+  top10HoldingsPercentage: number | null;
+  top50HoldingsPercentage: number | null;
+  top100HoldingsPercentage: number | null;
+  top200HoldingsPercentage: number | null;
+  devHoldingsPercentage: number | null;
+  insidersHoldingsPercentage: number | null;
+  bundlersHoldingsPercentage: number | null;
+  snipersHoldingsPercentage: number | null;
+  proTradersHolding: number | null;
+  totalFeesPaidUSD: number | null;
+  athToken0: number;
+  athToken1: number;
+  atlToken0: number;
+  atlToken1: number;
+  athDateToken0: Date | null;
+  athDateToken1: Date | null;
+  atlDateToken0: Date | null;
+  atlDateToken1: Date | null;
+}
+
+interface Token {
+  address: string;
+  price: number;
+  priceToken: number;
+  priceTokenString: string;
+  approximateReserveUSD: number;
+  approximateReserveTokenRaw: string;
+  approximateReserveToken: number;
+  symbol: string | null;
+  name: string | null;
+  id: number | null;
+  decimals: number;
+  totalSupply: number;
+  circulatingSupply: number;
+  logo: string | null;
+  chainId: string;
+  marketCap?: number;
+  marketCapDiluted?: number;
+  exchange?: {
+    name: string;
+    logo: string;
+  };
+  factory?: string | null;
+  source?: string | null;
+  sourceFactory?: string | null;
+  liquidity?: number;
+  liquidityMax?: number;
+  bonded?: boolean;
+  bondingPercentage?: number;
+  bondingCurveAddress?: string | null;
+  preBondingFactory?: string;
+  poolAddress?: string;
+  top10HoldingsPercentage?: number;
+  top50HoldingsPercentage?: number;
+  top100HoldingsPercentage?: number;
+  top200HoldingsPercentage?: number;
+  devHoldingsPercentage?: number;
+  insidersHoldingsPercentage?: number;
+  bundlersHoldingsPercentage?: number;
+  snipersHoldingsPercentage?: number;
+  proTradersHoldingsPercentage?: number;
+  blockchain?: string;
+  type?: string;
+  deployer?: string | null;
+  createdAt?: string;
+  bonded_at?: Date | null;
+  ath?: number;
+  atl?: number;
+  athDate?: Date | null;
+  atlDate?: Date | null;
+}
+```
+
+### Complete Response Example
+
+```json
+{
+  "type": "init",
+  "payload": {
+    "trending-view": {
+      "data": [
+        {
+          "price": 0.000123,
+          "price_change_1min": 2.5,
+          "price_change_5min": 5.2,
+          "price_change_1h": 12.8,
+          "price_change_4h": 25.3,
+          "price_change_6h": 18.7,
+          "price_change_12h": 45.2,
+          "price_change_24h": 67.8,
+          
+          "price_1min_ago": 0.000120,
+          "price_5min_ago": 0.000117,
+          "price_1h_ago": 0.000109,
+          "price_4h_ago": 0.000098,
+          "price_6h_ago": 0.000104,
+          "price_12h_ago": 0.000085,
+          "price_24h_ago": 0.000073,
+          
+          "market_cap": 123000,
+          "created_at": "2024-01-15T10:30:00Z",
+          "holders_count": 1450,
+          "latest_trade_date": "2024-01-15T10:30:00Z",
+          "latest_price": 0.000123,
+          
+          "volume_1min": 1500,
+          "volume_5min": 7500,
+          "volume_15min": 18000,
+          "volume_1h": 45000,
+          "volume_4h": 120000,
+          "volume_6h": 180000,
+          "volume_12h": 350000,
+          "volume_24h": 500000,
+          
+          "volume_buy_1min": 900,
+          "volume_buy_5min": 4500,
+          "volume_buy_15min": 10800,
+          "volume_buy_1h": 27000,
+          "volume_buy_4h": 72000,
+          "volume_buy_6h": 108000,
+          "volume_buy_12h": 210000,
+          "volume_buy_24h": 300000,
+          "volume_sell_1min": 600,
+          "volume_sell_5min": 3000,
+          "volume_sell_15min": 7200,
+          "volume_sell_1h": 18000,
+          "volume_sell_4h": 48000,
+          "volume_sell_6h": 72000,
+          "volume_sell_12h": 140000,
+          "volume_sell_24h": 200000,
+          
+          "trades_1min": 25,
+          "trades_5min": 120,
+          "trades_15min": 280,
+          "trades_1h": 650,
+          "trades_4h": 1800,
+          "trades_6h": 2500,
+          "trades_12h": 4200,
+          "trades_24h": 6800,
+          
+          "buys_1min": 15,
+          "buys_5min": 75,
+          "buys_15min": 180,
+          "buys_1h": 420,
+          "buys_4h": 1200,
+          "buys_6h": 1700,
+          "buys_12h": 2800,
+          "buys_24h": 4500,
+          
+          "sells_1min": 10,
+          "sells_5min": 45,
+          "sells_15min": 100,
+          "sells_1h": 230,
+          "sells_4h": 600,
+          "sells_6h": 800,
+          "sells_12h": 1400,
+          "sells_24h": 2300,
+          
+          "buyers_1min": 12,
+          "buyers_5min": 58,
+          "buyers_15min": 135,
+          "buyers_1h": 320,
+          "buyers_4h": 850,
+          "buyers_6h": 1200,
+          "buyers_12h": 2100,
+          "buyers_24h": 3400,
+          
+          "sellers_1min": 8,
+          "sellers_5min": 35,
+          "sellers_15min": 75,
+          "sellers_1h": 180,
+          "sellers_4h": 450,
+          "sellers_6h": 600,
+          "sellers_12h": 1100,
+          "sellers_24h": 1800,
+          
+          "traders_1min": 5,
+          "traders_5min": 25,
+          "traders_15min": 55,
+          "traders_1h": 120,
+          "traders_4h": 300,
+          "traders_6h": 400,
+          "traders_12h": 750,
+          "traders_24h": 1200,
+          
+          "fees_paid_1min": 15.5,
+          "fees_paid_5min": 75.2,
+          "fees_paid_15min": 180.8,
+          "fees_paid_1h": 450.5,
+          "fees_paid_4h": 1200.3,
+          "fees_paid_6h": 1800.7,
+          "fees_paid_12h": 3500.2,
+          "fees_paid_24h": 5000.8,
+          
+          "source": "pumpfun",
+          "deployer": "0x1234567890abcdef...",
+          "tokenSymbol": "DOGE",
+          "tokenName": "Dogecoin",
+          "dexscreenerListed": true,
+          
+          "devHolding": 8.2,
+          "insidersHolding": 5.3,
+          "snipersHolding": 3.8,
+          "bundlersHolding": 2.1,
+          "deployerMigrations": 0,
+          "twitterReusesCount": 0,
+          "proTradersHolding": 12.5,
+          "top10Holding": 25.3,
+          "top50Holding": 45.7,
+          "top200Holding": 68.2,
+          
+          "pair": {
+            "token0": {
+              "address": "0x1234567890abcdef...",
+              "price": 0.000123,
+              "priceToken": 0.000123,
+              "priceTokenString": "0.000123",
+              "approximateReserveUSD": 25000,
+              "approximateReserveTokenRaw": "203252032520325203252",
+              "approximateReserveToken": 203252032520325203252,
+              "symbol": "DOGE",
+              "name": "Dogecoin",
+              "id": 12345,
+              "decimals": 18,
+              "totalSupply": 1000000000,
+              "circulatingSupply": 850000000,
+              "logo": "https://example.com/logo.png",
+              "chainId": "evm:8453",
+              "marketCap": 104550,
+              "marketCapDiluted": 123000,
+              "exchange": {
+                "name": "Uniswap V2",
+                "logo": "https://example.com/uniswap-logo.png"
+              },
+              "factory": "0xfactory1234567890abcdef...",
+              "source": "pumpfun",
+              "sourceFactory": "0xsourcefactory123...",
+              "liquidity": 45000,
+              "liquidityMax": 52000,
+              "bonded": false,
+              "bondingPercentage": 65.5,
+              "bondingCurveAddress": null,
+              "preBondingFactory": "0xprebondingfactory456...",
+              "poolAddress": "0xpool1234567890abcdef...",
+              "top10HoldingsPercentage": 25.3,
+              "top50HoldingsPercentage": 45.7,
+              "top100HoldingsPercentage": 68.2,
+              "top200HoldingsPercentage": 75.1,
+              "devHoldingsPercentage": 8.2,
+              "insidersHoldingsPercentage": 5.3,
+              "bundlersHoldingsPercentage": 2.1,
+              "snipersHoldingsPercentage": 3.8,
+              "proTradersHoldingsPercentage": 12.5,
+              "blockchain": "base",
+              "type": "uniswap-v2",
+              "deployer": "0x1234567890abcdef...",
+              "createdAt": "2024-01-15T10:30:00Z",
+              "bonded_at": null,
+              "ath": 0.001234,
+              "atl": 0.000045,
+              "athDate": "2024-01-10T08:00:00Z",
+              "atlDate": "2023-12-25T12:00:00Z"
+            },
+            "token1": {
+              "address": "0x4200000000000000000000000000000000000006",
+              "price": 3200.50,
+              "priceToken": 1,
+              "priceTokenString": "1",
+              "approximateReserveUSD": 20000,
+              "approximateReserveTokenRaw": "6250000000000000000",
+              "approximateReserveToken": 6.25,
+              "symbol": "WETH",
+              "name": "Wrapped Ether",
+              "id": 67890,
+              "decimals": 18,
+              "totalSupply": 1000000,
+              "circulatingSupply": 1000000,
+              "logo": "https://example.com/weth-logo.png",
+              "chainId": "evm:8453",
+              "marketCap": 3200500000,
+              "marketCapDiluted": 3200500000,
+              "exchange": {
+                "name": "Uniswap V2",
+                "logo": "https://example.com/uniswap-logo.png"
+              },
+              "factory": "0xfactory1234567890abcdef...",
+              "source": "pumpfun",
+              "sourceFactory": "0xsourcefactory123...",
+              "liquidity": 20000,
+              "liquidityMax": 25000,
+              "bonded": false,
+              "bondingPercentage": 0,
+              "bondingCurveAddress": null,
+              "preBondingFactory": null,
+              "poolAddress": "0xpool1234567890abcdef...",
+              "top10HoldingsPercentage": 15.2,
+              "top50HoldingsPercentage": 35.8,
+              "top100HoldingsPercentage": 58.4,
+              "top200HoldingsPercentage": 65.2,
+              "devHoldingsPercentage": 2.1,
+              "insidersHoldingsPercentage": 1.8,
+              "bundlersHoldingsPercentage": 0.5,
+              "snipersHoldingsPercentage": 1.2,
+              "proTradersHoldingsPercentage": 8.5,
+              "blockchain": "base",
+              "type": "uniswap-v2",
+              "deployer": "0x4200000000000000000000000000000000000006",
+              "createdAt": "2023-01-01T00:00:00Z",
+              "bonded_at": null,
+              "ath": 3500.0,
+              "atl": 2800.0,
+              "athDate": "2024-01-08T12:00:00Z",
+              "atlDate": "2023-12-20T10:00:00Z"
+            },
+            "volume24h": 500000,
+            "liquidity": 45000,
+            "blockchain": "base",
+            "address": "0xpool1234567890abcdef...",
+            "createdAt": "2024-01-15T10:30:00Z",
+            "type": "uniswap-v2",
+            "baseToken": "token0",
+            "exchange": {
+              "name": "Uniswap V2",
+              "logo": "https://example.com/uniswap-logo.png"
+            },
+            "factory": "0xfactory1234567890abcdef...",
+            "quoteToken": "token1",
+            "price": 0.000123,
+            "priceToken": 0.000123,
+            "priceTokenString": "0.000123",
+            "bonded": false,
+            "bondingPercentage": 0,
+            "bondingCurveAddress": null,
+            "sourceFactory": null,
+            "top10HoldingsPercentage": 25.3,
+            "top50HoldingsPercentage": 45.7,
+            "top100HoldingsPercentage": 68.2,
+            "top200HoldingsPercentage": 75.1,
+            "devHoldingsPercentage": 8.2,
+            "insidersHoldingsPercentage": 5.3,
+            "bundlersHoldingsPercentage": 2.1,
+            "snipersHoldingsPercentage": 3.8,
+            "proTradersHolding": 12.5,
+            "totalFeesPaidUSD": 5000.8,
+            "athToken0": 0.001234,
+            "athToken1": 3500.0,
+            "atlToken0": 0.000045,
+            "atlToken1": 2800.0,
+            "athDateToken0": "2024-01-10T08:00:00Z",
+            "athDateToken1": "2024-01-08T12:00:00Z",
+            "atlDateToken0": "2023-12-25T12:00:00Z",
+            "atlDateToken1": "2023-12-20T10:00:00Z"
+          },
+          "bondingPercentage": 0,
+          "bonded": false,
+          "bondingCurveAddress": null,
+          "sourceFactory": null,
+          "socials": {
+            "twitter": "https://twitter.com/dogecoin",
+            "website": "https://dogecoin.com",
+            "telegram": "https://t.me/dogecoin",
+            "others": null
+          },
+          "description": "A revolutionary meme token",
+          "top10HoldingsPercentage": 25.3,
+          "top50HoldingsPercentage": 45.7,
+          "top100HoldingsPercentage": 68.2,
+          "top200HoldingsPercentage": 75.1,
+          "devHoldingsPercentage": 8.2,
+          "insidersHoldingsPercentage": 5.3,
+          "bundlersHoldingsPercentage": 2.1,
+          "snipersHoldingsPercentage": 3.8,
+          "proTradersHoldingsPercentage": 12.5,
+          "holders_list": [
+            {
+              "address": "0xholder1234567890abcdef...",
+              "balance": 1000000,
+              "nativeBalance": 0.5,
+              "balanceUsd": 123,
+              "boughtAmount": 1500000,
+              "soldAmount": 500000,
+              "pnl": 23
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
+
+## Response Handling
+
+### Message Flow
+
+1. **Connection**: Send initial subscription with views configuration
+2. **Init**: Receive `init` message with current data for all views
+3. **Updates**: Receive real-time updates via `new-pool`, `update-pool`, and `remove-pool` messages
+4. **Sync**: Receive periodic `sync` messages to maintain data consistency
+5. **Management**: Use pause/unpause to control data flow
+
+### Error Handling
+
+The API will send error messages in the following format:
+
+```json
+{
+  "type": "error",
+  "payload": {
+    "message": "Error description",
+    "code": "ERROR_CODE"
+  }
+}
+```
+
+### Reconnection Strategy
+
+When reconnecting:
+1. Send the same subscription message
+2. Receive `init` message with current state
+3. Resume receiving real-time updates
+
+## Performance Considerations
+
+### View Limits
+- Maximum 10 views per connection
+- Maximum 100 pools per view
+- Maximum 1000 total pools across all views
+
+### Bandwidth Optimization
+- Use `pause` to reduce bandwidth when views are not needed
+- Filter aggressively to reduce data volume
+- Consider using `limit` to restrict pool count
+
+### Caching
+- Views are cached for 10 minutes when no clients are subscribed
+- Default views are always maintained
+- Factory name resolution is cached for performance
+
+
+## Support
+
+Need help? Our response times are < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup> 

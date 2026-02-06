@@ -1,0 +1,552 @@
+---
+title: "Holders Stream"
+asyncapi: "asyncapi.yaml holders"
+description: "Real-time WebSocket stream for monitoring token holder analytics and distribution data"
+---
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Real-time vs HTTP
+
+<CardGroup>
+  <Card title="🔗 GET Method" icon="link" href="/rest-api-reference/endpoint/market-token-holders">
+    **Available in HTTP queries**
+    
+    Use the same filtering system in HTTP GET requests for simple queries.
+  </Card>
+
+  <Card title="📝 POST Method" icon="code" href="/rest-api-reference/endpoint/market-token-holders">
+    **Available in HTTP queries**
+    
+    Use the same filtering system in HTTP POST requests for advanced configurations.
+  </Card>
+</CardGroup>
+
+## Overview
+
+Holders Stream provides real-time monitoring of token holder analytics and distribution data. This WebSocket API allows you to track holder statistics, wallet labels, trading behavior, and concentration metrics for specific tokens across multiple blockchains.
+
+## Key Features
+
+- **Real-time Holder Analytics**: Monitor holder distribution and concentration metrics
+- **Wallet Labeling**: Track insider, bundler, sniper, and professional trader activity
+- **Trading Behavior Analysis**: Monitor buy/sell patterns and PnL tracking
+- **Multi-chain Support**: Support for Solana, Ethereum, Base, and other supported blockchains
+- **Live Updates**: Real-time updates when holder positions change
+- **Comprehensive Metrics**: Detailed analytics including top holder percentages and trader classifications
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `holders`
+
+## Subscription Formats
+
+### Single Token Subscription
+
+Subscribe to holder data for a specific token:
+
+```json
+{
+  "type": "holders",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "tokens": [
+      {
+        "address": "BCghRAYsRq3wByYWLwicnRieZP2LocEMosbhU595QLnz",
+        "blockchain": "solana:solana"
+      }
+    ]
+  }
+}
+```
+
+### Multiple Tokens Subscription
+
+You can subscribe to multiple tokens simultaneously:
+
+```json
+{
+  "type": "holders",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "tokens": [
+      {
+        "address": "BCghRAYsRq3wByYWLwicnRieZP2LocEMosbhU595QLnz",
+        "blockchain": "solana:solana"
+      },
+      {
+        "address": "0x1234567890abcdef1234567890abcdef12345678",
+        "blockchain": "evm:8453"
+      }
+    ]
+  }
+}
+```
+
+## Parameters
+
+- **`tokens`** (required): Array of token subscription items, each containing:
+  - **`address`** (required): Token address
+  - **`blockchain`** (required): Blockchain identifier (e.g., `"solana:solana"`, `"evm:8453"`)
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
+<Note>
+Maximum 10 tokens per connection for optimal performance.
+</Note>
+
+## Data Model
+
+### HoldersStreamData Structure
+
+The Holders Stream provides comprehensive holder analytics following this structure:
+
+```typescript
+interface HoldersStreamData {
+  // Holder Distribution Metrics
+  top10HoldingsPercentage: number;
+  top50HoldingsPercentage: number;
+  top100HoldingsPercentage: number;
+  top200HoldingsPercentage: number;
+  
+  // Wallet Classification Percentages
+  devHoldingsPercentage: number;
+  insidersHoldingsPercentage: number;
+  snipersHoldingsPercentage: number;
+  bundlersHoldingsPercentage: number;
+  
+  // Trader Counts
+  snipersCount: number;
+  insidersCount: number;
+  bundlersCount: number;
+  proTradersCount: number;
+  smartTradersCount: number;
+  freshTradersCount: number;
+  
+  // Trading Activity Counts
+  proTradersBuys: number;
+  smartTradersBuys: number;
+  freshTradersBuys: number;
+  
+  // Total Holder Count
+  holdersCount: number;
+  
+  // Detailed Holder List
+  holders: HolderData[];
+}
+
+interface HolderData {
+  // Basic Information
+  address: string;
+  updatedAt: string;
+  createdAt: string;
+  
+  // Balance Information (Raw Values)
+  balanceRaw: string;
+  nativeBalanceRaw: string;
+  boughtAmountRaw: string;
+  soldAmountRaw: string;
+  
+  // Balance Information (Formatted Values)
+  balance: number;
+  nativeBalance: number;
+  boughtAmount: number;
+  soldAmount: number;
+  
+  // USD Values
+  boughtAmountUSD: number;
+  soldAmountUSD: number;
+  balanceUSD: number;
+  realizedPnlUSD: number;
+  unrealizedPnlUSD: number;
+  
+  // Wallet Labels/Tags
+  tags: string[];
+}
+```
+
+### Available Holder Statistics
+
+The Holders Stream provides access to comprehensive holder analytics:
+
+#### Distribution Metrics
+- `top10HoldingsPercentage`: Percentage of tokens held by top 10 holders
+- `top50HoldingsPercentage`: Percentage of tokens held by top 50 holders
+- `top100HoldingsPercentage`: Percentage of tokens held by top 100 holders
+- `top200HoldingsPercentage`: Percentage of tokens held by top 200 holders
+
+#### Wallet Classification
+- `devHoldingsPercentage`: Percentage held by developer wallets
+- `insidersHoldingsPercentage`: Percentage held by insider wallets
+- `snipersHoldingsPercentage`: Percentage held by sniper wallets
+- `bundlersHoldingsPercentage`: Percentage held by bundler wallets
+
+#### Trader Analytics
+- `snipersCount`: Number of sniper wallets
+- `insidersCount`: Number of insider wallets
+- `bundlersCount`: Number of bundler wallets
+- `proTradersCount`: Number of professional trader wallets
+- `smartTradersCount`: Number of smart trader wallets
+- `freshTradersCount`: Number of fresh trader wallets
+
+#### Trading Activity
+- `proTradersBuys`: Number of buy transactions by professional traders
+- `smartTradersBuys`: Number of buy transactions by smart traders
+- `freshTradersBuys`: Number of buy transactions by fresh traders
+
+#### Individual Holder Data
+Each holder in the `holders` array contains:
+- `address`: Wallet address
+- `balance`: Current token balance
+- `balanceUSD`: Current balance value in USD
+- `boughtAmount`: Total amount bought
+- `soldAmount`: Total amount sold
+- `realizedPnlUSD`: Realized profit/loss in USD
+- `unrealizedPnlUSD`: Unrealized profit/loss in USD
+- `tags`: Array of wallet labels (e.g., "insider", "bundler", "sniper")
+
+## Message Types
+
+### Initial Data Message
+
+Sent when first subscribing to a token's holder data:
+
+```json
+{
+  "data": {
+    "top10HoldingsPercentage": 3.6179797268414,
+    "devHoldingsPercentage": -3.6180838471429,
+    "top50HoldingsPercentage": -1.2512e-9,
+    "top100HoldingsPercentage": -1.2512e-9,
+    "top200HoldingsPercentage": -1.2512e-9,
+    "snipersHoldingsPercentage": 0,
+    "snipersCount": 0,
+    "insidersHoldingsPercentage": 2.4385038857834,
+    "insidersCount": 1,
+    "bundlersHoldingsPercentage": 2.4385038857834,
+    "bundlersCount": 1,
+    "proTradersCount": 0,
+    "smartTradersCount": 0,
+    "freshTradersCount": 0,
+    "proTradersBuys": 0,
+    "smartTradersBuys": 0,
+    "freshTradersBuys": 0,
+    "holdersCount": 20,
+    "holders": [
+      {
+        "address": "11111111111111111111111111111113",
+        "updatedAt": "2025-09-24T23:23:15.955Z",
+        "createdAt": "2025-09-24T23:22:31.618Z",
+        "balanceRaw": "24385038857834",
+        "nativeBalanceRaw": "0",
+        "boughtAmountRaw": "24385038857834",
+        "soldAmountRaw": "0",
+        "tags": ["insider", "bundler"],
+        "boughtAmountUSD": 0,
+        "soldAmountUSD": 0,
+        "balanceUSD": 412.6731108691701,
+        "balance": 24385038.857834,
+        "nativeBalance": 0,
+        "boughtAmount": 24385038.857834,
+        "soldAmount": 0,
+        "realizedPnlUSD": 0,
+        "unrealizedPnlUSD": 412.6731108691701
+      }
+    ]
+  },
+  "subscriptionId": "9841a684920b832a"
+}
+```
+
+### Update Messages
+
+Sent when holder data changes (new holders, balance updates, etc.):
+
+```json
+{
+  "data": {
+    "top10HoldingsPercentage": 3.8,
+    "devHoldingsPercentage": -3.5,
+    "top50HoldingsPercentage": 0.1,
+    "top100HoldingsPercentage": 0.1,
+    "top200HoldingsPercentage": 0.1,
+    "snipersHoldingsPercentage": 0,
+    "snipersCount": 0,
+    "insidersHoldingsPercentage": 2.6,
+    "insidersCount": 1,
+    "bundlersHoldingsPercentage": 2.6,
+    "bundlersCount": 1,
+    "proTradersCount": 0,
+    "smartTradersCount": 0,
+    "freshTradersCount": 0,
+    "proTradersBuys": 0,
+    "smartTradersBuys": 0,
+    "freshTradersBuys": 0,
+    "holdersCount": 22,
+    "holders": [
+      {
+        "address": "NewHolderAddress123456789",
+        "updatedAt": "2025-09-24T23:25:00.000Z",
+        "createdAt": "2025-09-24T23:25:00.000Z",
+        "balanceRaw": "1000000000000",
+        "nativeBalanceRaw": "0",
+        "boughtAmountRaw": "1000000000000",
+        "soldAmountRaw": "0",
+        "tags": [],
+        "boughtAmountUSD": 0,
+        "soldAmountUSD": 0,
+        "balanceUSD": 16.93,
+        "balance": 1000000,
+        "nativeBalance": 0,
+        "boughtAmount": 1000000,
+        "soldAmount": 0,
+        "realizedPnlUSD": 0,
+        "unrealizedPnlUSD": 16.93
+      }
+    ]
+  },
+  "subscriptionId": "9841a684920b832a"
+}
+```
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "holders",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      tokens: [
+        {
+          address: "BCghRAYsRq3wByYWLwicnRieZP2LocEMosbhU595QLnz",
+          blockchain: "solana:solana"
+        }
+      ],
+      subscriptionTracking: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Process holder analytics update
+  if (data.data) {
+    console.log("Holders count:", data.data.holdersCount);
+    console.log("Top 10 holdings:", `${data.data.top10HoldingsPercentage}%`);
+    console.log("Insider percentage:", `${data.data.insidersHoldingsPercentage}%`);
+    console.log("Top holders:", data.data.holders.slice(0, 5));
+  }
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
+});
+```
+
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Use Cases
+
+### Token Distribution Analysis
+
+Monitor the distribution of tokens among holders to identify concentration risks:
+
+```json
+{
+  "type": "holders",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "tokens": [
+      {
+        "address": "TOKEN_ADDRESS",
+        "blockchain": "solana:solana"
+      }
+    ]
+  }
+}
+```
+
+### Insider Activity Monitoring
+
+Track insider and developer wallet activity:
+
+```json
+{
+  "type": "holders",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "tokens": [
+      {
+        "address": "TOKEN_ADDRESS",
+        "blockchain": "evm:8453"
+      }
+    ]
+  }
+}
+```
+
+### Professional Trader Tracking
+
+Monitor professional trader activity and their impact on token distribution:
+
+```json
+{
+  "type": "holders",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "tokens": [
+      {
+        "address": "TOKEN_ADDRESS",
+        "blockchain": "solana:solana"
+      }
+    ]
+  }
+}
+```
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Streams
+
+To terminate all active subscriptions on the current WebSocket connection:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {}
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+To unsubscribe from a specific subscription using its ID:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "subscriptionId": "9841a684920b832a"
+  }
+}
+```
+
+### Unsubscribe from All Holder Streams
+
+To unsubscribe from all holder streams while keeping other stream types active:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "type": "holders"
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+</Note>
+
+## Performance Considerations
+
+### Subscription Limits
+- Maximum 10 tokens per connection
+- Real-time updates for all subscribed tokens
+- Efficient data streaming with minimal bandwidth usage
+
+### Data Update Frequency
+- Updates sent when holder positions change
+- Real-time balance updates
+- New holder additions and removals
+
+## Supported Blockchains
+
+The Holders Stream supports all blockchains available in the Mobula API:
+
+- **Solana**: `solana:solana`
+- **Ethereum**: `evm:1`
+- **Base**: `evm:8453`
+- **BSC**: `evm:56`
+- **Polygon**: `evm:137`
+- **Arbitrum**: `evm:42161`
+- **Optimism**: `evm:10`
+- And many more...
+
+## Error Handling
+
+### Common Error Responses
+
+```json
+{
+  "error": "Invalid token address",
+  "message": "The provided token address is not valid for the specified blockchain"
+}
+```
+
+```json
+{
+  "error": "Unsupported blockchain",
+  "message": "The specified blockchain is not supported for holder analytics"
+}
+```
+
+```json
+{
+  "error": "Rate limit exceeded",
+  "message": "Too many subscription requests. Please wait before making new requests"
+}
+```
+
+## Support
+
+Need help? Our response times are < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup>

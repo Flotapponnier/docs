@@ -1,0 +1,507 @@
+---
+title: "Multi-Events Stream"
+asyncapi: "asyncapi.yaml multiEventsStream"
+description: "Real-time WebSocket stream for retrieving raw and curated events (e.g., Swaps, Liquidity) across EVM and Solana chains"
+---
+
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
+## Endpoint Details
+
+Mobula now provides **two dedicated WSS endpoints**
+
+Why? Because EVM and Solana work very differently under the hood. If we tried to send both through a single WebSocket channel, things would get messy:  
+- The event queue would **get backed up** under heavy traffic  
+- Messages would arrive **slower or even drop**  
+- Scaling would be harder since both ecosystems compete for the same resources  
+
+By keeping them separate, you get:  
+- **Faster and more reliable streams**  
+- **Independent scaling** (EVM traffic won’t affect Solana, and vice-versa)  
+- **Stable event delivery**, even when network activity spikes  
+
+
+<Warning>
+You cannot mix Solana subscriptions on the EVM endpoint (and vice-versa).  
+Always use the correct endpoint for the chain you’re working with.
+</Warning>
+
+
+
+### EVM Chains
+- **Endpoint:** `wss://stream-evm-prod.mobula.io/`  
+- **Supported events:** `swap`, `transfer`, `swap-enriched`  
+- **Subscription Payload:**
+
+This stream will capture **all transfers & swaps and enriched swaps received by a specific address**.
+
+<Note>The EVM address in the filters must be **lowercase**.</Note>
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "MyWalletEvmTransactions",
+      "chainIds": ["evm:6342"],
+      "events": ["swap", "transfer", "swap-enriched"],
+      "filters": { "eq": ["transactionTo", "0xd36b20c9dd8ffe68ed6078204dea8862d147193e"] },
+      "subscriptionTracking":"true"
+    }
+}
+```
+
+### SVM Chains
+- **Endpoint:** `wss://stream-sol-prod.mobula.io/`  
+- **Supported events:** `swap`, `transfer`, `swap-enriched`  
+- **Subscription Payload:**
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "MyWalletEvmTransactions",
+      "chainIds": ["solana:solana"],
+      "events": ["swap", "transfer"],
+      "subscriptionTracking":"true"
+    }
+}
+```
+
+### Perpetuals (Perps) Chains
+- **Endpoint:** `wss://stream-perps-prod.mobula.io/`  
+- **Supported events:** `order`  
+- **Supported chains:** `lighter:301`, `lighter:304`, `evm:42161` (Arbitrum for Gains Network)
+
+The `order` event captures perpetual trading activity including market orders, liquidations, limit orders, take profits, and stop losses. See the [**Perps Data Model**](/indexing-stream/stream/data-model/perps-data-model) for full field reference.
+
+**Subscription Payload:**
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "LighterLiquidations",
+      "chainIds": ["lighter:301", "lighter:304"],
+      "events": ["order"],
+      "filters": {
+        "or": [
+          { "eq": ["type", "LIQUIDATION_LONG"] },
+          { "eq": ["type", "LIQUIDATION_SHORT"] }
+        ]
+      },
+      "subscriptionTracking": "true"
+    }
+}
+```
+
+**Available order types to filter on:**
+- `MARKET_BUY` - Market buy orders
+- `MARKET_SELL` - Market sell orders
+- `LIQUIDATION_LONG` - Liquidated long positions
+- `LIQUIDATION_SHORT` - Liquidated short positions
+- `LIMIT_BUY` - Limit buy orders
+- `LIMIT_SELL` - Limit sell orders
+- `TAKE_PROFIT` - Take profit executions
+- `STOP_LOSS` - Stop loss executions
+- `UPDATE_TP` - Take profit updates
+- `UPDATE_SL` - Stop loss updates
+
+
+## Usage Examples
+
+Before diving into the examples, make sure to check the data models:
+- [**EVM Data Model**](/indexing-stream/stream/data-model/evm-data-model) - Blocks, transactions, logs, traces, transfers
+- [**Solana Data Model**](/indexing-stream/stream/data-model/solana-data-model) - Solana-specific events
+- [**Perps Data Model**](/indexing-stream/stream/data-model/perps-data-model) - Perpetual orders, liquidations
+- [**Curated Data Model**](/indexing-stream/stream/data-model/curated-data-model) - Enriched swaps and transfers
+
+<Note> **Pro Tip for Devs:** Dive into these data models and experiment with filters — your imagination is the only limit! Mix `and` / `or`, combine keys, and watch your streams come alive!</Note>
+
+- Explore `poolType`, `poolAddress`, `transactionFrom`, `transactionTo`, and other keys in the data models.  
+- Combine multiple conditions using `and` / `or` operators to capture exactly the events you want.  
+- Mix and match [filters](/indexing-stream/stream/filters) across swaps and transfers to suit your application needs.  
+
+### Filter Swaps by Pools
+This stream captures **all swaps from either `raydium` or `raydium-clmm` pools**.
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "MyWalletSolTransactions",
+      "chainIds": ["solana:solana"],
+      "events": ["swap"],
+      "filters": {
+        "or": [
+          {"eq": ["poolType", "raydium"]},
+          {"eq": ["poolType", "raydium-clmm"]}
+        ]
+      },
+      "subscriptionTracking":"true"
+    }
+}
+```
+
+### Filter Swap-Enriched by Pools
+
+This stream captures **all [`swap-enriched`](/indexing-stream/stream/data-model/curated-data-model#enriched-swap-model) events** from either `raydium` or `raydium-clmm` pools. The returned data is enriched, including:  
+
+- **Derived swap view**  
+- **Base and quote token details**  
+- **Token metadata**  
+
+```json
+{
+  "type": "stream",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "name": "MyWalletSolTransactions",
+    "chainIds": ["solana:solana"],
+    "events": ["swap-enriched"],
+    "filters": {
+      "or": [
+        { "eq": ["poolType", "raydium"] },
+        { "eq": ["poolType", "raydium-clmm"] }
+      ]
+    },
+    "subscriptionTracking": "true"
+  }
+}
+```
+
+
+### Filter Transfer by Contract Address 
+This stream captures **all swaps for a specific `poolAddress` and `poolType`**.
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "MyWalletSolTransactions",
+      "chainIds": ["solana:solana"],
+      "events": ["transfer"],
+      "filters": {
+        "and": [
+          {"eq": ["poolType", "pumpswap"]},
+          {"eq": ["poolAddress", "68L2iPWLtkRuxhHBYVJLSzaApBVuM6DNqLL1pEywbDGR"]}
+        ]
+      },
+      "subscriptionTracking":"true"
+    }
+}
+```
+
+
+### Filter Transfers by Sender
+This stream captures **all transfers sent to a specific `address`**.  
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "MyWalletTransactions",
+      "chainIds": ["solana:solana"],
+      "events": ["transfer"],
+      "filters": { "eq": ["transactionTo", "ASde6y8pBCU1aityWHRpqT7pEAcEonjCgFUMeh5egRes"] },
+      "subscriptionTracking":"true"
+    }
+}
+
+```
+### Filter Transfers From Sender and Receiver
+This stream captures **all transfers sent from or received by specific `addresses`**.  
+
+```json
+{ 
+    "type": "stream",
+    "authorization": "YOUR_API_KEY",
+    "payload": {
+      "name": "MyWalletSolTransactions",
+      "chainIds": ["solana:solana"],
+      "events": ["transfer"],
+      "filters": {
+        "or": [
+          {"eq": ["transactionFrom", "2zqLokC98qfedXyXZHeL4sEdFcmmTFizvb1UQeRweWxp"]},
+          {"eq": ["transactionTo", "suqh5sHtr8HyJ7q8scBimULPkPpA557prMG47xCHQfK"]}
+        ]
+      },
+      "subscriptionTracking":"true"
+    }
+}
+```
+
+### Filter Swaps by Pool Address (Batch)
+This stream listens for **all swap events** associated with one or more specific `poolAddress` values.  
+
+- Using the `"in"` filter lets you efficiently capture swaps where the `poolAddress` matches **any address in your provided list**.  
+- You can also apply similar logic to other fields such as `from`, `to`, or `poolType` — depending on what aspect of the swap you want to track.
+
+```json
+{
+  "type": "stream",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "name": "MyWalletEvmTransactions",
+    "chainIds": ["evm:8453"],
+    "events": ["swap"],
+    "filters": {
+      "or": [
+        {
+          "in": [
+            "poolAddress",
+            [
+              "0xd0b53d9277642d899df5c87a3966a349a798f224",
+              "0xedc625b74537ee3a10874f53d170e9c17a906b9c",
+              "0x76fa2b719cad87970ed6a5948abd23a474aa092cfd99ba362b7c9f53880f3cac"
+            ]
+          ]
+        }
+      ]
+    },
+    "subscriptionTracking": "true"
+  }
+}
+```
+### Filter Swaps by Pool Type and Sender Address
+
+This stream tracks **all swap events** that match specific `poolType` values **and** originate from one or more given `swapSenderAddress` values.  
+It’s perfect if you want to **monitor swap activity from certain wallets** while limiting results to **specific pool categories** (like Uniswap pools).
+
+By combining `"in"` filters inside an `"and"` block, you can precisely define your tracking logic:  
+- Only capture swaps from **specific wallet addresses**
+- AND make sure they belong to one of your **target DEX pool types**
+
+This gives you a flexible way to **analyze user trading behavior** or **build custom real-time monitoring systems**.
+
+```json
+{
+  "type": "stream",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "name": "MyWalletEvmTransactions",
+    "chainIds": ["evm:8453"],
+    "events": ["swap"],
+    "filters": {
+      "and": [
+        {
+          "in": [
+            "poolType",
+            [
+              "uniswap-v2",
+              "uniswap-v4",
+              "uniswap-v3"
+            ]
+          ]
+        },
+        {
+          "in": [
+            "swapSenderAddress",
+            [
+              "0xd0b53d9277642d899df5c87a3966a349a798f224",
+              "0xa6b579684e943f7d00d616a48cf99b5147fc57a5",
+              "0xc88b2264d3ac0456a4863bf021de4e8ee1129a6b"
+            ]
+          ]
+        }
+      ]
+    },
+    "subscriptionTracking": "true"
+  }
+}
+```
+
+
+
+### Filter Perps by Order Type (Liquidations)
+
+This stream captures **all liquidation events** from Lighter perpetuals.
+
+```json
+{
+  "type": "stream",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "name": "LighterLiquidations",
+    "chainIds": ["lighter:301", "lighter:304"],
+    "events": ["order"],
+    "filters": {
+      "or": [
+        { "eq": ["type", "LIQUIDATION_LONG"] },
+        { "eq": ["type", "LIQUIDATION_SHORT"] }
+      ]
+    },
+    "subscriptionTracking": "true"
+  }
+}
+```
+
+### Filter Perps by Exchange
+
+This stream captures **all perpetual orders** from a specific exchange.
+
+```json
+{
+  "type": "stream",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "name": "GainsOrders",
+    "chainIds": ["evm:42161"],
+    "events": ["order"],
+    "filters": { "eq": ["exchange", "gains"] },
+    "subscriptionTracking": "true"
+  }
+}
+```
+
+### Filter Large Market Orders
+
+This stream captures **market buy and sell orders** - useful for whale watching.
+
+```json
+{
+  "type": "stream",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "name": "LargeMarketOrders",
+    "chainIds": ["lighter:301", "lighter:304"],
+    "events": ["order"],
+    "filters": {
+      "or": [
+        { "eq": ["type", "MARKET_BUY"] },
+        { "eq": ["type", "MARKET_SELL"] }
+      ]
+    },
+    "subscriptionTracking": "true"
+  }
+}
+```
+
+## Parameters
+
+- **`chainIds`** (required): Array of blockchain identifiers - [See supported chains](/blockchains/intro-blockchains)
+- **`events`** (required): Array of event types - `swap`, `transfer`, `swap-enriched`, `order` (perps)
+- **`filters`** (optional): Filter conditions for events - [See filter documentation](/indexing-stream/stream/filters)
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://stream-evm-prod.mobula.io/");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "stream",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      chainIds: ["evm:1", "evm:56"],
+      events: ["swap", "transfer"],
+      subscriptionTracking: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.reorg) {
+    // Handle blockchain reorganization
+    console.log("Reorg detected:", data);
+    return;
+  }
+  
+  // Process normal events
+  console.log("Event received:", data);
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
+});
+```
+
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Streams
+
+To terminate all active subscriptions on the current WebSocket connection:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {}
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+To unsubscribe from a specific subscription using its ID:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "subscriptionId": "your-subscription-id"
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+</Note>
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup>
