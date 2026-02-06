@@ -26,16 +26,100 @@ channels:
   multiEventsStream:
     address: /
     messages:
-      eventMessage:
+      subscribe:
+        summary: Subscribe to multi-events stream
+        description: Subscribe to raw blockchain events (swaps, transfers) with filters
         payload:
           type: object
-          description: Raw blockchain events (swaps, transfers) with optional enrichment
+          properties:
+            type:
+              type: string
+              const: stream
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                chainIds:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of blockchain IDs to monitor
+                events:
+                  type: array
+                  items:
+                    type: string
+                    enum: [swap, transfer, swap-enriched, block, order]
+                  description: Event types to receive
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Multi-events data
+        description: Real-time blockchain events (swaps, transfers)
+        payload:
+          type: object
+          properties:
+            event:
+              type: string
+              description: Event type (swap, transfer, etc.)
+            chainId:
+              type: string
+              description: Blockchain ID where event occurred
+            hash:
+              type: string
+              description: Transaction hash
+            blockNumber:
+              type: number
+              description: Block number
+            timestamp:
+              type: number
+              description: Event timestamp
     description: Real-time stream for raw and curated events (Swaps, Transfers) across EVM and Solana chains
 
   fastTrades:
     address: /
     messages:
-      tradeMessage:
+      subscribe:
+        summary: Subscribe to fast trades
+        description: Subscribe to real-time trades for specific tokens/pools
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              const: fast-trade
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                assetMode:
+                  type: boolean
+                  default: false
+                  description: Subscribe by asset (true) or by pool (false)
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        description: Token or pool address
+                      blockchain:
+                        type: string
+                        description: Blockchain name
+                  description: List of tokens/pools to monitor
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Trade data
+        description: Real-time trade updates
         payload:
           type: object
           properties:
@@ -47,13 +131,19 @@ channels:
               description: Token identifier (when assetMode is true)
             date:
               type: number
-              description: Trade timestamp
+              description: Trade timestamp (Unix ms)
             tokenPrice:
               type: number
               description: Token price at time of trade
+            tokenPriceVs:
+              type: number
+              description: Quote token price
             tokenAmount:
               type: number
               description: Amount of base token traded
+            tokenAmountVs:
+              type: number
+              description: Amount of quote token traded
             tokenAmountUsd:
               type: number
               description: Trade value in USD
@@ -61,6 +151,9 @@ channels:
               type: string
               enum: [buy, sell]
               description: Trade direction
+            operation:
+              type: string
+              description: Operation type (regular, liquidity, arbitrage)
             blockchain:
               type: string
               description: Blockchain where trade occurred
@@ -70,15 +163,62 @@ channels:
             sender:
               type: string
               description: Wallet address that initiated the trade
+            swapRecipient:
+              type: string
+              description: Recipient wallet address (important for AA wallets)
             totalFeesUSD:
               type: number
               description: Total fees in USD
+            gasFeesUSD:
+              type: number
+              description: Gas fees in USD
+            platformFeesUSD:
+              type: number
+              description: Platform/protocol fees in USD
+            mevFeesUSD:
+              type: number
+              description: MEV fees in USD
     description: Real-time WebSocket stream for trades on multiple pools and tokens
 
   ohlcv:
     address: /
     messages:
-      ohlcvMessage:
+      subscribe:
+        summary: Subscribe to OHLCV data
+        description: Subscribe to candlestick data for a token or pair
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              const: ohlcv
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                address:
+                  type: string
+                  description: Token or pool address
+                blockchain:
+                  type: string
+                  description: Blockchain name
+                period:
+                  type: string
+                  enum: ['1m', '5m', '15m', '1h', '4h', '1d']
+                  description: Candle period
+                mode:
+                  type: string
+                  enum: [asset, pair]
+                  description: Asset mode (token) or pair mode (pool)
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: OHLCV candlestick data
+        description: Real-time candlestick updates
         payload:
           type: object
           properties:
@@ -99,16 +239,56 @@ channels:
               description: Trading volume in period
             time:
               type: number
-              description: Candle timestamp
+              description: Candle timestamp (Unix ms)
             period:
               type: string
-              description: Candle period (1m, 5m, 15m, 1h, 1d, etc.)
+              description: Candle period (1m, 5m, 15m, 1h, 1d)
+            subscriptionId:
+              type: string
+              description: Your subscription tracking ID
     description: Real-time WebSocket stream for OHLCV (candlestick) data for any asset
 
   priceFeed:
     address: /
     messages:
-      priceMessage:
+      subscribe:
+        summary: Subscribe to price feed (Enterprise only)
+        description: Subscribe to weighted price feed with market depth
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              const: feed
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key (Enterprise)
+            payload:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  enum: [asset_ids, address, all]
+                  description: Subscription mode
+                asset_ids:
+                  type: array
+                  items:
+                    type: number
+                  description: Array of Mobula asset IDs (when kind=asset_ids)
+                tokens:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                      blockchain:
+                        type: string
+                  description: Array of tokens (when kind=address)
+      event:
+        summary: Price feed data
+        description: Real-time weighted price with market depth
         payload:
           type: object
           properties:
@@ -120,37 +300,183 @@ channels:
               description: Weighted price
             marketDepthUSDUp:
               type: number
-              description: Market depth USD upwards
+              description: Market depth USD upwards (buy side liquidity)
             marketDepthUSDDown:
               type: number
-              description: Market depth USD downwards
+              description: Market depth USD downwards (sell side liquidity)
             volume24h:
               type: number
-              description: 24h trading volume
+              description: 24-hour trading volume in USD
     description: Real-time price feed weighted by volume and market depth (Enterprise only)
 
   marketDetails:
     address: /
     messages:
-      marketMessage:
+      subscribe:
+        summary: Subscribe to market details
+        description: Subscribe to enriched market pool data
         payload:
           type: object
-          description: Enriched market pool data with metrics and analytics
+          properties:
+            type:
+              type: string
+              const: market-details
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                pools:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        description: Pool address
+                      blockchain:
+                        type: string
+                        description: Blockchain name
+                  description: List of pools to monitor
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Market data
+        description: Enriched market pool data with metrics
+        payload:
+          type: object
+          properties:
+            liquidity:
+              type: number
+              description: Total liquidity in USD
+            volume24h:
+              type: number
+              description: 24h trading volume
+            priceChange24h:
+              type: number
+              description: 24h price change percentage
+            trades24h:
+              type: number
+              description: Number of trades in last 24h
+            poolAddress:
+              type: string
+              description: Pool address
+            blockchain:
+              type: string
+              description: Blockchain name
     description: Real-time WebSocket stream for market pools with enriched data
 
   tokenDetails:
     address: /
     messages:
-      tokenMessage:
+      subscribe:
+        summary: Subscribe to token details
+        description: Subscribe to enriched token data
         payload:
           type: object
-          description: Enriched token data with price, volume, and market metrics
+          properties:
+            type:
+              type: string
+              const: token-details
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                tokens:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        description: Token address
+                      blockchain:
+                        type: string
+                        description: Blockchain name
+                  description: List of tokens to monitor
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Token data
+        description: Enriched token data with price and market metrics
+        payload:
+          type: object
+          properties:
+            price:
+              type: number
+              description: Current token price
+            priceChange24h:
+              type: number
+              description: 24h price change percentage
+            volume24h:
+              type: number
+              description: 24h trading volume
+            marketCap:
+              type: number
+              description: Market capitalization
+            liquidity:
+              type: number
+              description: Total liquidity
+            holders:
+              type: number
+              description: Number of holders
+            tokenAddress:
+              type: string
+              description: Token address
+            blockchain:
+              type: string
+              description: Blockchain name
     description: Real-time WebSocket stream for multiple tokens with enriched market data
 
   position:
     address: /
     messages:
-      positionMessage:
+      subscribe:
+        summary: Subscribe to wallet position
+        description: Subscribe to single wallet position with live P&L
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              const: position
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                wallet:
+                  type: string
+                  description: Wallet address to monitor
+                token:
+                  type: string
+                  description: Token address
+                blockchain:
+                  type: string
+                  description: Blockchain name
+                includeFees:
+                  type: boolean
+                  default: false
+                  description: Include transaction fees in P&L calculation
+                useSwapRecipient:
+                  type: boolean
+                  default: false
+                  description: Use swap recipient for AA wallets
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Position data
+        description: Real-time position with P&L tracking
         payload:
           type: object
           properties:
@@ -162,19 +488,67 @@ channels:
               description: Token address
             balance:
               type: number
-              description: Token balance
+              description: Current token balance
             amountUSD:
               type: number
-              description: Position value in USD
+              description: Current position value in USD
             totalPnlUSD:
               type: number
               description: Total profit/loss in USD
+            realizedPnlUSD:
+              type: number
+              description: Realized P&L in USD
+            unrealizedPnlUSD:
+              type: number
+              description: Unrealized P&L in USD
+            avgBuyPrice:
+              type: number
+              description: Average buy price
+            currentPrice:
+              type: number
+              description: Current token price
     description: Real-time WebSocket stream for wallet positions with live P&L tracking
 
   positions:
     address: /
     messages:
-      positionsMessage:
+      subscribe:
+        summary: Subscribe to all wallet positions
+        description: Subscribe to all positions of a wallet with automatic updates
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              const: positions
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      wallet:
+                        type: string
+                        description: Wallet address
+                      token:
+                        type: string
+                        description: Token address
+                      blockchain:
+                        type: string
+                        description: Blockchain name
+                  description: List of wallet/token pairs to monitor
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: All positions data
+        description: Array of all positions for tracked wallets
         payload:
           type: object
           properties:
@@ -183,13 +557,61 @@ channels:
               description: Wallet address
             positions:
               type: array
+              items:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Token address
+                  balance:
+                    type: number
+                    description: Token balance
+                  amountUSD:
+                    type: number
+                    description: Position value in USD
+                  totalPnlUSD:
+                    type: number
+                    description: Total P&L in USD
               description: Array of all positions
     description: Real-time WebSocket stream for all positions of a wallet with automatic updates
 
   holders:
     address: /
     messages:
-      holdersMessage:
+      subscribe:
+        summary: Subscribe to holder analytics
+        description: Subscribe to token holder distribution and analytics
+        payload:
+          type: object
+          properties:
+            type:
+              type: string
+              const: holders
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                tokens:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      address:
+                        type: string
+                        description: Token address
+                      blockchain:
+                        type: string
+                        description: Blockchain name
+                  description: List of tokens to monitor
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Holder analytics data
+        description: Token holder distribution and analytics
         payload:
           type: object
           properties:
@@ -199,95 +621,375 @@ channels:
             top10HoldingsPercentage:
               type: number
               description: Percentage held by top 10 holders
+            top100HoldingsPercentage:
+              type: number
+              description: Percentage held by top 100 holders
             holders:
               type: array
+              items:
+                type: object
+                properties:
+                  address:
+                    type: string
+                    description: Holder wallet address
+                  balance:
+                    type: number
+                    description: Token balance
+                  percentage:
+                    type: number
+                    description: Percentage of total supply
               description: Detailed holder information
+            tokenAddress:
+              type: string
+              description: Token address
+            blockchain:
+              type: string
+              description: Blockchain name
     description: Real-time WebSocket stream for monitoring token holder analytics and distribution data
 
   funding:
     address: /
     messages:
-      fundingMessage:
+      subscribe:
+        summary: Subscribe to funding rates
+        description: Subscribe to perpetual futures funding rates
         payload:
           type: object
-          description: Real-time funding rates across supported exchanges
+          properties:
+            type:
+              type: string
+              const: funding
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                symbol:
+                  type: string
+                  description: Trading symbol (e.g., BTC, ETH)
+                quote:
+                  type: string
+                  description: Quote currency (e.g., USD, USDT)
+                exchange:
+                  type: string
+                  description: Exchange name (optional, for specific exchange)
+                interval:
+                  type: number
+                  default: 5
+                  description: Update interval in seconds
+                subscriptionId:
+                  type: string
+                  description: Optional subscription tracking ID
+      event:
+        summary: Funding rate data
+        description: Real-time funding rates from exchanges
+        payload:
+          type: object
+          properties:
+            symbol:
+              type: string
+              description: Trading symbol
+            exchange:
+              type: string
+              description: Exchange name
+            fundingRate:
+              type: number
+              description: Current funding rate (percentage)
+            nextFundingTime:
+              type: number
+              description: Next funding timestamp
+            fundingInterval:
+              type: number
+              description: Funding interval in hours
+            timestamp:
+              type: number
+              description: Data timestamp
     description: Real-time WebSocket stream for funding rates across supported exchanges
 
   pulseV2:
     address: /
     messages:
-      pulseMessage:
+      subscribe:
+        summary: Subscribe to Pulse V2 (token-based)
+        description: Advanced token monitoring with customizable views
         payload:
           type: object
-          description: Advanced token monitoring with customizable views and real-time metrics
+          properties:
+            type:
+              type: string
+              const: pulse-v2
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [pause, unpause]
+                  description: Pause or unpause the stream
+                views:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of view IDs to subscribe to
+      event:
+        summary: Pulse V2 token data
+        description: Advanced token monitoring metrics
+        payload:
+          type: object
+          properties:
+            viewId:
+              type: string
+              description: View identifier
+            tokens:
+              type: array
+              items:
+                type: object
+                properties:
+                  address:
+                    type: string
+                    description: Token address
+                  price:
+                    type: number
+                    description: Current price
+                  volume:
+                    type: number
+                    description: Trading volume
+                  liquidity:
+                    type: number
+                    description: Total liquidity
+                  priceChange:
+                    type: number
+                    description: Price change percentage
+              description: Array of token metrics
     description: Advanced WebSocket stream for real-time token monitoring with multiple views
 
   pulseV2PoolBased:
     address: /
     messages:
-      pulsePoolMessage:
+      subscribe:
+        summary: Subscribe to Pulse V2 (pool-based)
+        description: Advanced pool monitoring with customizable views
         payload:
           type: object
-          description: Advanced pool monitoring with customizable views and real-time metrics
+          properties:
+            type:
+              type: string
+              const: pulse-v2
+              description: Message type identifier
+            authorization:
+              type: string
+              description: Your Mobula API key
+            payload:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [pause, unpause]
+                  description: Pause or unpause the stream
+                views:
+                  type: array
+                  items:
+                    type: string
+                  description: Array of view IDs to subscribe to
+      event:
+        summary: Pulse V2 pool data
+        description: Advanced pool monitoring metrics
+        payload:
+          type: object
+          properties:
+            viewId:
+              type: string
+              description: View identifier
+            pools:
+              type: array
+              items:
+                type: object
+                properties:
+                  address:
+                    type: string
+                    description: Pool address
+                  liquidity:
+                    type: number
+                    description: Total liquidity
+                  volume:
+                    type: number
+                    description: Trading volume
+                  apy:
+                    type: number
+                    description: Annual percentage yield
+              description: Array of pool metrics
     description: Advanced WebSocket stream for real-time pool monitoring with pool-based subscriptions
 
 operations:
+  subscribeMultiEvents:
+    action: send
+    channel:
+      $ref: '#/channels/multiEventsStream'
+    messages:
+      - $ref: '#/channels/multiEventsStream/messages/subscribe'
+
   receiveMultiEvents:
     action: receive
     channel:
       $ref: '#/channels/multiEventsStream'
+    messages:
+      - $ref: '#/channels/multiEventsStream/messages/event'
+
+  subscribeFastTrades:
+    action: send
+    channel:
+      $ref: '#/channels/fastTrades'
+    messages:
+      - $ref: '#/channels/fastTrades/messages/subscribe'
 
   receiveTrades:
     action: receive
     channel:
       $ref: '#/channels/fastTrades'
+    messages:
+      - $ref: '#/channels/fastTrades/messages/event'
+
+  subscribeOHLCV:
+    action: send
+    channel:
+      $ref: '#/channels/ohlcv'
+    messages:
+      - $ref: '#/channels/ohlcv/messages/subscribe'
 
   receiveOHLCV:
     action: receive
     channel:
       $ref: '#/channels/ohlcv'
+    messages:
+      - $ref: '#/channels/ohlcv/messages/event'
+
+  subscribePriceFeed:
+    action: send
+    channel:
+      $ref: '#/channels/priceFeed'
+    messages:
+      - $ref: '#/channels/priceFeed/messages/subscribe'
 
   receivePriceFeed:
     action: receive
     channel:
       $ref: '#/channels/priceFeed'
+    messages:
+      - $ref: '#/channels/priceFeed/messages/event'
+
+  subscribeMarketDetails:
+    action: send
+    channel:
+      $ref: '#/channels/marketDetails'
+    messages:
+      - $ref: '#/channels/marketDetails/messages/subscribe'
 
   receiveMarketDetails:
     action: receive
     channel:
       $ref: '#/channels/marketDetails'
+    messages:
+      - $ref: '#/channels/marketDetails/messages/event'
+
+  subscribeTokenDetails:
+    action: send
+    channel:
+      $ref: '#/channels/tokenDetails'
+    messages:
+      - $ref: '#/channels/tokenDetails/messages/subscribe'
 
   receiveTokenDetails:
     action: receive
     channel:
       $ref: '#/channels/tokenDetails'
+    messages:
+      - $ref: '#/channels/tokenDetails/messages/event'
+
+  subscribePosition:
+    action: send
+    channel:
+      $ref: '#/channels/position'
+    messages:
+      - $ref: '#/channels/position/messages/subscribe'
 
   receivePosition:
     action: receive
     channel:
       $ref: '#/channels/position'
+    messages:
+      - $ref: '#/channels/position/messages/event'
+
+  subscribePositions:
+    action: send
+    channel:
+      $ref: '#/channels/positions'
+    messages:
+      - $ref: '#/channels/positions/messages/subscribe'
 
   receivePositions:
     action: receive
     channel:
       $ref: '#/channels/positions'
+    messages:
+      - $ref: '#/channels/positions/messages/event'
+
+  subscribeHolders:
+    action: send
+    channel:
+      $ref: '#/channels/holders'
+    messages:
+      - $ref: '#/channels/holders/messages/subscribe'
 
   receiveHolders:
     action: receive
     channel:
       $ref: '#/channels/holders'
+    messages:
+      - $ref: '#/channels/holders/messages/event'
+
+  subscribeFunding:
+    action: send
+    channel:
+      $ref: '#/channels/funding'
+    messages:
+      - $ref: '#/channels/funding/messages/subscribe'
 
   receiveFunding:
     action: receive
     channel:
       $ref: '#/channels/funding'
+    messages:
+      - $ref: '#/channels/funding/messages/event'
+
+  subscribePulseV2:
+    action: send
+    channel:
+      $ref: '#/channels/pulseV2'
+    messages:
+      - $ref: '#/channels/pulseV2/messages/subscribe'
 
   receivePulseV2:
     action: receive
     channel:
       $ref: '#/channels/pulseV2'
+    messages:
+      - $ref: '#/channels/pulseV2/messages/event'
+
+  subscribePulseV2PoolBased:
+    action: send
+    channel:
+      $ref: '#/channels/pulseV2PoolBased'
+    messages:
+      - $ref: '#/channels/pulseV2PoolBased/messages/subscribe'
 
   receivePulseV2PoolBased:
     action: receive
     channel:
       $ref: '#/channels/pulseV2PoolBased'
+    messages:
+      - $ref: '#/channels/pulseV2PoolBased/messages/event'
