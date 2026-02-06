@@ -9,7 +9,9 @@
   },
   "favicon": "/favicon.svg",
   "api": {
-    "asyncapi": ["asyncapi.yaml"]
+    "asyncapi": [
+      "asyncapi.yaml"
+    ]
   },
   "navigation": {
     "tabs": [
@@ -74,8 +76,17 @@
         "tab": "WebSocket API (Test)",
         "groups": [
           {
-            "group": "Mobula WebSocket API",
+            "group": "WebSocket API Reference",
             "asyncapi": "asyncapi.yaml"
+          },
+          {
+            "group": "Stream Documentation",
+            "pages": [
+              "wss/fast-trades",
+              "wss/ohlcv-stream",
+              "wss/position-stream",
+              "wss/price-feed"
+            ]
           }
         ]
       }
@@ -114,15 +125,15 @@
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {

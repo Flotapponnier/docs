@@ -1,0 +1,68 @@
+---
+title: "Fast Trades Stream"
+asyncapi: "asyncapi.yaml fastTrades"
+description: "Real-time WebSocket stream for trades on multiple pools and tokens"
+---
+
+<Tip>This endpoint is only available to Growth and Enterprise plans.</Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `fast-trade`
+
+## Quick Start
+
+Subscribe to real-time trades for specific pools or tokens:
+
+```json
+{
+  "type": "fast-trade",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "assetMode": false,
+    "items": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+      }
+    ],
+    "subscriptionTracking": true
+  }
+}
+```
+
+<Note>
+**Asset Mode**: The `assetMode` parameter determines address interpretation:
+- `false` (default): Addresses are pool addresses
+- `true`: Addresses are token addresses
+</Note>
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "fast-trade",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      assetMode: false,
+      items: [
+        {
+          blockchain: "evm:1",
+          address: "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+        }
+      ]
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`${data.type} trade: $${data.tokenAmountUsd}`);
+});
+```
+
+<Tip>You can use the Network tab in your browser to see WebSocket requests and responses in real-time.</Tip>

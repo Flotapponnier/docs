@@ -1,0 +1,68 @@
+---
+title: "OHLCV Stream"
+asyncapi: "asyncapi.yaml ohlcv"
+description: "Real-time WebSocket stream for OHLCV candlestick data"
+---
+
+<Tip>This endpoint is available on all plans including Free tier.</Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `ohlcv`
+
+## Quick Start
+
+Subscribe to candlestick data for any asset:
+
+```json
+{
+  "type": "ohlcv",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+    "blockchain": "evm:1",
+    "period": "5m",
+    "mode": "asset"
+  }
+}
+```
+
+## Supported Periods
+
+- `1m` - 1 minute candles
+- `5m` - 5 minute candles
+- `15m` - 15 minute candles
+- `1h` - 1 hour candles
+- `4h` - 4 hour candles
+- `1d` - 1 day candles
+
+<Note>
+**Mode Selection**:
+- `asset`: Token-based candlesticks (aggregated across all pools)
+- `pair`: Pool-specific candlesticks
+</Note>
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "ohlcv",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      address: "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+      blockchain: "evm:1",
+      period: "5m",
+      mode: "asset"
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const candle = JSON.parse(event.data);
+  console.log(`OHLCV: O=${candle.open} H=${candle.high} L=${candle.low} C=${candle.close}`);
+});
+```

@@ -1,0 +1,73 @@
+---
+title: "Position Stream"
+asyncapi: "asyncapi.yaml position"
+description: "Real-time WebSocket stream for wallet positions with live P&L tracking"
+---
+
+<Tip>This endpoint is only available to Growth and Enterprise plans.</Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://api.mobula.io`
+- **Event Type**: `position`
+
+## Quick Start
+
+Track a wallet's position with real-time P&L:
+
+```json
+{
+  "type": "position",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "wallet": "0x1234567890abcdef1234567890abcdef12345678",
+    "token": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+    "blockchain": "evm:1",
+    "includeFees": true,
+    "useSwapRecipient": false
+  }
+}
+```
+
+<Note>
+**Fee Inclusion**: Set `includeFees: true` to include transaction fees in P&L calculations for accurate profit tracking.
+
+**AA Wallets**: Use `useSwapRecipient: true` for Account Abstraction wallets to track the actual recipient instead of the AA contract.
+</Note>
+
+## Real-Time P&L Updates
+
+You'll receive updates whenever:
+- Position balance changes (buys/sells)
+- Token price changes
+- P&L calculations update
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "position",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      wallet: "0x1234567890abcdef1234567890abcdef12345678",
+      token: "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+      blockchain: "evm:1",
+      includeFees: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const position = JSON.parse(event.data);
+  console.log(`Balance: ${position.balance}`);
+  console.log(`Value: $${position.amountUSD}`);
+  console.log(`Total P&L: $${position.totalPnlUSD}`);
+  console.log(`Realized: $${position.realizedPnlUSD}`);
+  console.log(`Unrealized: $${position.unrealizedPnlUSD}`);
+});
+```
+
+<Tip>Track multiple positions by maintaining separate WebSocket connections or using the `positions` stream for bulk monitoring.</Tip>

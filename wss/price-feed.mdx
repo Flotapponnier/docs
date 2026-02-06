@@ -1,0 +1,92 @@
+---
+title: "Price Feed Stream (Enterprise)"
+asyncapi: "asyncapi.yaml priceFeed"
+description: "Real-time price feed weighted by volume and market depth"
+---
+
+<Tip>This endpoint is **Enterprise only** and requires dedicated infrastructure.</Tip>
+
+## Endpoint Details
+
+- **URL**: `wss://production-feed.mobula.io`
+- **Event Type**: `feed`
+
+## Quick Start
+
+Subscribe to weighted price feed with market depth:
+
+```json
+{
+  "type": "feed",
+  "authorization": "YOUR-ENTERPRISE-API-KEY",
+  "payload": {
+    "kind": "asset_ids",
+    "asset_ids": [100004345, 100004404],
+    "quote_id": 100000001
+  }
+}
+```
+
+## Subscription Modes
+
+### By Asset IDs
+```json
+{
+  "kind": "asset_ids",
+  "asset_ids": [100004345, 100004404],
+  "quote_id": 100000001
+}
+```
+
+### By Token Addresses
+```json
+{
+  "kind": "address",
+  "tokens": [
+    {
+      "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+      "blockchain": "evm:1"
+    }
+  ],
+  "quote": {
+    "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    "blockchain": "evm:1"
+  }
+}
+```
+
+### All Assets
+```json
+{
+  "kind": "all"
+}
+```
+
+<Note>
+**Market Depth**: This feed includes `marketDepthUSDUp` and `marketDepthUSDDown` which represent available liquidity for buy/sell orders, critical for institutional trading.
+</Note>
+
+## Implementation Example
+
+```typescript
+const socket = new WebSocket("wss://production-feed.mobula.io");
+
+socket.addEventListener("open", () => {
+  socket.send(JSON.stringify({
+    type: "feed",
+    authorization: "YOUR_ENTERPRISE_KEY",
+    payload: {
+      kind: "asset_ids",
+      asset_ids: [100004345]
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const feed = JSON.parse(event.data);
+  console.log(`Price: $${feed.price}`);
+  console.log(`Market Depth Up: $${feed.marketDepthUSDUp}`);
+  console.log(`Market Depth Down: $${feed.marketDepthUSDDown}`);
+  console.log(`24h Volume: $${feed.volume24h}`);
+});
+```
