@@ -1,79 +1,39 @@
-asyncapi: 2.6.0
+asyncapi: 3.0.0
 info:
   title: Mobula WebSocket API
   version: 1.0.0
   description: Real-time WebSocket streams for market data and trades
 
 servers:
-  main:
-    url: api.mobula.io
+  production:
+    host: api.mobula.io
     protocol: wss
-    description: Main WebSocket endpoint
+    description: Production WebSocket server
 
 channels:
   fastTrades:
-    subscribe:
-      message:
-        $ref: '#/components/messages/FastTradesData'
-    description: Real-time WebSocket stream for trades on multiple pools and tokens
-    
-  ohlcv:
-    subscribe:
-      message:
-        $ref: '#/components/messages/OHLCVData'
-    description: Real-time WebSocket stream for OHLCV (candlestick) data
+    address: /
+    messages:
+      tradeMessage:
+        payload:
+          type: object
+          properties:
+            pair:
+              type: string
+              description: Trading pair
+            price:
+              type: number
+              description: Trade price
+            type:
+              type: string
+              enum: [buy, sell]
+              description: Trade type
+    description: Real-time trade updates
 
-components:
-  messages:
-    FastTradesData:
-      name: Fast Trades Data
-      summary: Real-time trade updates
-      payload:
-        type: object
-        properties:
-          pair:
-            type: string
-            description: Trading pair identifier
-          date:
-            type: number
-            description: Trade timestamp
-          tokenPrice:
-            type: number
-            description: Token price at time of trade
-          type:
-            type: string
-            enum:
-              - buy
-              - sell
-            description: Trade direction
-          blockchain:
-            type: string
-            description: Blockchain where trade occurred
-          hash:
-            type: string
-            description: Transaction hash
-            
-    OHLCVData:
-      name: OHLCV Data
-      summary: Candlestick data updates
-      payload:
-        type: object
-        properties:
-          high:
-            type: number
-            description: Highest price in period
-          low:
-            type: number
-            description: Lowest price in period
-          open:
-            type: number
-            description: Opening price
-          close:
-            type: number
-            description: Closing price
-          volume:
-            type: number
-            description: Trading volume in period
-          time:
-            type: number
-            description: Candle timestamp
+operations:
+  receiveTrades:
+    action: receive
+    channel:
+      $ref: '#/channels/fastTrades'
+    messages:
+      - $ref: '#/channels/fastTrades/messages/tradeMessage'
