@@ -8,6 +8,9 @@
     "dark": "#15803D"
   },
   "favicon": "/favicon.svg",
+  "api": {
+    "asyncapi": ["asyncapi.yaml"]
+  },
   "navigation": {
     "tabs": [
       {
@@ -64,6 +67,15 @@
               "api-reference/endpoint/delete",
               "api-reference/endpoint/webhook"
             ]
+          }
+        ]
+      },
+      {
+        "tab": "WebSocket API (Test)",
+        "groups": [
+          {
+            "group": "Mobula WebSocket API",
+            "asyncapi": "asyncapi.yaml"
           }
         ]
       }
