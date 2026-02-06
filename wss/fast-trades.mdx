@@ -1,22 +1,23 @@
 ---
-title: "Fast Trades - Guide & Examples"
-description: "Complete guide with examples for the Fast Trades WebSocket stream"
+title: "Fast Trades Stream"
+asyncapi: "asyncapi.yaml fastTrades"
+description: "Real-time WebSocket stream for trades on multiple pools and tokens"
 ---
 
-<Tip>This endpoint is only available to Growth and Enterprise plans.</Tip>
-
-<Note>
-📚 **Full API Reference**: See the [Fast Trades API Reference](#) in the "API Reference (Auto-generated)" section for complete payload schemas and all properties.
-</Note>
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
 
 ## Endpoint Details
 
 - **URL**: `wss://api.mobula.io`
 - **Event Type**: `fast-trade`
 
-## Quick Start
+## Subscription Formats
 
-Subscribe to real-time trades for specific pools or tokens:
+The `fast-trade` endpoint supports subscribing to trades for multiple pools and tokens with real-time updates.
+
+### Multiple Items Subscription (Recommended)
+
+Subscribe to multiple pools and tokens using the `items` array format with `assetMode`:
 
 ```json
 {
@@ -28,6 +29,10 @@ Subscribe to real-time trades for specific pools or tokens:
       {
         "blockchain": "evm:1",
         "address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+      },
+      {
+        "blockchain": "evm:1",
+        "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6"
       }
     ],
     "subscriptionTracking": true
@@ -35,10 +40,309 @@ Subscribe to real-time trades for specific pools or tokens:
 }
 ```
 
+### Token Mode Subscription
+
+For token-specific trades (when `assetMode` is `true`):
+
+```json
+{
+  "type": "fast-trade",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "assetMode": true,
+    "items": [
+      {
+        "blockchain": "solana",
+        "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+      },
+      {
+        "blockchain": "evm:1",
+        "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6"
+      }
+    ],
+    "subscriptionTracking": true
+  }
+}
+```
+
+## Parameters
+
+- **`assetMode`** (required): Boolean indicating subscription mode
+  - `false`: Subscribe to pools (default)
+  - `true`: Subscribe to tokens
+- **`items`** (required): Array of subscription items, each containing:
+  - **`blockchain`** (required): Blockchain identifier (e.g., `"evm:1"`, `"solana"`)
+  - **`address`** (required): Pool or token address
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
 <Note>
+**Trade Data Only**: This endpoint provides trade events without enriched market data. For complete market statistics with each trade, use `market-details` or `token-details` streams instead.
+
 **Asset Mode**: The `assetMode` parameter determines address interpretation:
 - `false` (default): Addresses are pool addresses
 - `true`: Addresses are token addresses
+</Note>
+
+## Real-Time Updates
+
+After subscribing, you'll receive real-time updates whenever new trades occur involving the subscribed pools/tokens.
+
+### Real-Time Trade Updates
+
+When trades happen involving subscribed items, you'll receive updates with trade information. The response format depends on the `assetMode` used in your subscription:
+
+#### Pool Mode Response (`assetMode: false`)
+
+```json
+{
+  "pair": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640",
+  "date": 1704067800000,
+  "tokenPrice": 0.0234,
+  "tokenPriceVs": 2500.75,
+  "tokenAmount": 1000.0,
+  "tokenAmountVs": 0.4,
+  "tokenAmountUsd": 23.40,
+  "tokenNativePrice": 0.00000936,
+  "tokenMarketCapUSD": 234000.00,
+  "type": "sell",
+  "operation": "regular",
+  "blockchain": "Ethereum",
+  "hash": "0xdef789abc012...",
+  "sender": "0x1234567890abcdef...",
+  "tokenAmountRaw": "1000000000000000000000",
+  "tokenAmountRawVs": "400000000000000000",
+  "preBalanceBaseToken": "5000000000000000000000",
+  "preBalanceQuoteToken": "2000000000000000000",
+  "postBalanceBaseToken": "4000000000000000000000",
+  "postBalanceQuoteToken": "2400000000000000000",
+  "labels": ["proTrader"],
+  "platform": "axiom",
+  "totalFeesUSD": 0.27,
+  "gasFeesUSD": 0.02,
+  "platformFeesUSD": 0.23,
+  "mevFeesUSD": 0.02,
+  "subscriptionId": "sub_abc123",
+  "timestamp": 1704067800000
+}
+```
+
+#### Token Mode Response (`assetMode: true`)
+
+```json
+{
+  "token": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+  "date": 1704067800000,
+  "tokenPrice": 0.0234,
+  "tokenPriceVs": 2500.75,
+  "tokenAmount": 1000.0,
+  "tokenAmountVs": 0.4,
+  "tokenAmountUsd": 23.40,
+  "tokenNativePrice": 0.00000936,
+  "tokenMarketCapUSD": 234000.00,
+  "type": "sell",
+  "operation": "regular",
+  "blockchain": "Ethereum",
+  "hash": "0xdef789abc012...",
+  "sender": "0x1234567890abcdef...",
+  "tokenAmountRaw": "1000000000000000000000",
+  "tokenAmountRawVs": "400000000000000000",
+  "preBalanceBaseToken": "5000000000000000000000",
+  "preBalanceQuoteToken": "2000000000000000000",
+  "postBalanceBaseToken": "4000000000000000000000",
+  "postBalanceQuoteToken": "2400000000000000000",
+  "labels": ["sniper", "freshTrader"],
+  "platform": null,
+  "totalFeesUSD": 0.27,
+  "gasFeesUSD": 0.02,
+  "platformFeesUSD": 0.23,
+  "mevFeesUSD": 0.02,
+  "subscriptionId": "sub_abc123",
+  "timestamp": 1704067800000
+}
+```
+
+### Response Fields
+
+- **`pair`**: Pool address where the trade occurred (only in pool mode: `assetMode = false`)
+- **`token`**: Base token address involved in the trade (only in token mode: `assetMode = true`)
+- **`date`**: Timestamp of the trade (Unix milliseconds)
+- **`tokenPrice`**: Price of the traded token in USD
+- **`tokenPriceVs`**: Price of the quote token in USD
+- **`tokenAmount`**: Amount of tokens traded (base token)
+- **`tokenAmountVs`**: Amount of quote tokens traded
+- **`tokenAmountUsd`**: USD value of the trade
+- **`tokenNativePrice`**: Price of the traded token in the blockchain's native currency (e.g., ETH for Ethereum, SOL for Solana)
+- **`tokenMarketCapUSD`**: Market capitalization of the traded token in USD (based on circulating supply)
+- **`type`**: Trade type ("buy" or "sell")
+- **`operation`**: Operation type ("regular", "arbitrage", etc.)
+- **`blockchain`**: Blockchain name
+- **`hash`**: Transaction hash
+- **`sender`**: Transaction sender address
+- **`tokenAmountRaw`**: Raw token amount (base token)
+- **`tokenAmountRawVs`**: Raw token amount (quote token)
+- **`preBalanceBaseToken`**: Sender's balance of the base token before the swap (bigint or null)
+- **`preBalanceQuoteToken`**: Sender's balance of the quote token before the swap (bigint or null)
+- **`postBalanceBaseToken`**: Sender's balance of the base token after the swap (bigint or null)
+- **`postBalanceQuoteToken`**: Sender's balance of the quote token after the swap (bigint or null)
+- **`labels`**: Array of labels associated with the sender wallet for the base token/pool (see [Label Values](#label-values) below)
+- **`platform`**: Trading platform/aggregator identifier (e.g., "axiom", "gmgn", "padre", "trojan", "universalX") or null if not available
+- **`subscriptionId`**: Your subscription identifier
+- **`timestamp`**: Server timestamp when the update was sent
+
+#### Fee Breakdown
+
+<Info>
+**Complete fee transparency**: Unlike other platforms that only show gas + total, Mobula provides the full breakdown in real-time.
+</Info>
+
+- **`totalFeesUSD`**: Total fees in USD (gas + platform + MEV combined)
+- **`gasFeesUSD`**: Network gas fees in USD
+- **`platformFeesUSD`**: Platform/aggregator fees in USD (Axiom, GMGN, Trojan, etc.)
+- **`mevFeesUSD`**: MEV-related fees in USD (priority fees, Jito bundles, etc.)
+
+## Label Values
+
+The `labels` array can contain any combination of the following values, providing insight into the trader's behavior and classification:
+
+| Label | Value | Description |
+|-------|-------|-------------|
+| **Sniper** | `sniper` | Wallet that bought the token very early (typically in the first few blocks after launch) |
+| **Insider** | `insider` | Wallet with suspected insider/privileged information (e.g., pre-launch access) |
+| **Bundler** | `bundler` | Wallet that bundles multiple transactions together (often associated with MEV strategies) |
+| **Pro Trader** | `proTrader` | Uses a known professional trading platform (Axiom, GMGN, Trojan, Padre, UniversalX, etc.) |
+| **Smart Trader** | `smartTrader` | Wallet identified as a profitable/smart trader within the last 7 days |
+| **Fresh Trader** | `freshTrader` | Newly funded wallet (received initial funding within the last 24 hours) |
+| **Dev** | `dev` | Token deployer/developer wallet |
+| **Liquidity Pool** | `liquidityPool` | Address is a liquidity pool |
+
+<Info>
+**Label Context**: Labels are scoped to the specific token being traded. For example, a wallet may be labeled as `sniper` for Token A but not for Token B.
+</Info>
+
+### Example with Labels
+
+```json
+{
+  "token": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+  "type": "buy",
+  "tokenAmountUsd": 5000.00,
+  "sender": "0x1234567890abcdef...",
+  "labels": ["sniper", "proTrader", "smartTrader"],
+  "platform": "axiom",
+  "hash": "0xdef789abc012..."
+}
+```
+
+In this example, the trader:
+- Sniped the token early (`sniper`)
+- Uses a professional trading platform (`proTrader`)
+- Has been identified as a smart/profitable trader (`smartTrader`)
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Trade Streams
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "fast-trade"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "subscriptionId": "sub_abc123"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription with Type
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "fast-trade",
+    "subscriptionId": "sub_abc123"
+  }
+}
+```
+
+### Unsubscribe from Specific Items (Partial Unsubscription)
+
+You can unsubscribe from specific pools/tokens while keeping others active in the same subscription:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "fast-trade",
+    "items": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+      }
+    ]
+  }
+}
+```
+
+### Unsubscribe from Multiple Specific Items
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "fast-trade",
+    "items": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+      },
+      {
+        "blockchain": "evm:1",
+        "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6"
+      }
+    ]
+  }
+}
+```
+
+### Unsubscribe from Specific Items in a Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "fast-trade",
+    "subscriptionId": "sub_abc123",
+    "items": [
+      {
+        "blockchain": "evm:1",
+        "address": "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
+      }
+    ]
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+
+For partial unsubscriptions without `subscriptionId`, the system will automatically find and modify subscriptions that contain the specified items, leaving other items in those subscriptions active.
 </Note>
 
 ## Implementation Example
@@ -57,15 +361,67 @@ socket.addEventListener("open", () => {
           blockchain: "evm:1",
           address: "0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"
         }
-      ]
+      ],
+      subscriptionTracking: true
     }
   }));
 });
 
 socket.addEventListener("message", (event) => {
   const data = JSON.parse(event.data);
-  console.log(`${data.type} trade: $${data.tokenAmountUsd}`);
+  
+  // Process trade update
+  console.log(`${data.type} trade:`, data);
+  console.log(`Amount: $${data.tokenAmountUsd}`);
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
 });
 ```
 
-<Tip>You can use the Network tab in your browser to see WebSocket requests and responses in real-time.</Tip>
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+</CardGroup>

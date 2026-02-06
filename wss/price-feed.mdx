@@ -1,70 +1,143 @@
 ---
-title: "Price Feed Stream (Enterprise)"
-asyncapi: "asyncapi.yaml priceFeed"
-description: "Real-time price feed weighted by volume and market depth"
+title: 'Price Feed Stream'
+asyncapi: 'asyncapi.yaml priceFeed'
+description: 'Real-time WebSocket stream for price feeds weighted by volume & market depth (slippage)'
 ---
 
-<Tip>This endpoint is **Enterprise only** and requires dedicated infrastructure.</Tip>
+<Tip> This endpoint is only available to Enterprise plans. </Tip>
 
 ## Endpoint Details
 
 - **URL**: `wss://production-feed.mobula.io`
 - **Event Type**: `feed`
 
-## Quick Start
+## Subscription Formats
 
-Subscribe to weighted price feed with market depth:
+The Price Feed Stream supports two versions with different subscription methods.
+
+### V2 Subscription (Recommended)
+
+Version 2 provides more flexibility with two subscription modes:
+
+#### Subscribe by Asset IDs
 
 ```json
 {
   "type": "feed",
-  "authorization": "YOUR-ENTERPRISE-API-KEY",
-  "payload": {
-    "kind": "asset_ids",
-    "asset_ids": [100004345, 100004404],
-    "quote_id": 100000001
-  }
-}
-```
-
-## Subscription Modes
-
-### By Asset IDs
-```json
-{
+  "authorization": "YOUR_API_KEY",
   "kind": "asset_ids",
-  "asset_ids": [100004345, 100004404],
-  "quote_id": 100000001
+  "asset_ids": [123, 456],
+  "quote_id": 456
 }
 ```
 
-### By Token Addresses
+#### Subscribe by Token Addresses
+
 ```json
 {
+  "type": "feed",
+  "authorization": "YOUR_API_KEY",
   "kind": "address",
   "tokens": [
     {
-      "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
-      "blockchain": "evm:1"
+      "blockchain": "solana",
+      "address": "So11111111111111111111111111111111111111112"
+    },
+    {
+      "blockchain": "evm:1",
+      "address": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
     }
   ],
   "quote": {
-    "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    "blockchain": "evm:1"
+    "blockchain": "solana",
+    "address": "So11111111111111111111111111111111111111112"
   }
 }
 ```
 
-### All Assets
+### V1 Subscription (Legacy)
+
+Subscribe to all assets in the database:
+
 ```json
 {
-  "kind": "all"
+  "type": "feed",
+  "authorization": "YOUR_API_KEY"
 }
 ```
 
+## Parameters
+
+### V2 Parameters
+
+- **`kind`** (required for V2): Subscription mode - `asset_ids` or `address`
+- **`asset_ids`** (optional): Array of asset IDs to subscribe to. Omit for all assets
+- **`tokens`** (optional): Array of token objects with `blockchain` and `address`. Omit for all tokens
+- **`quote_id`** (optional): Quote asset ID for pricing. Defaults to USD
+- **`quote`** (optional): Quote token object with `blockchain` and `address`. Defaults to USD
+
 <Note>
-**Market Depth**: This feed includes `marketDepthUSDUp` and `marketDepthUSDDown` which represent available liquidity for buy/sell orders, critical for institutional trading.
+You can find asset IDs using the `/all` endpoint. If `asset_ids` or `tokens` are omitted, you'll receive updates for all registered assets.
 </Note>
+
+## Data Model
+
+Each price update includes the following fields:
+
+```typescript
+{
+  timestamp: number;           // Unix timestamp in milliseconds
+  price: number;              // Current asset price
+  marketDepthUSDUp: number;   // Market depth for upward price movement
+  marketDepthUSDDown: number; // Market depth for downward price movement
+  volume24h: number;          // 24-hour trading volume
+  baseSymbol: string;         // Base asset symbol
+  quoteSymbol: string;        // Quote asset symbol (e.g., "USD")
+  extra: {
+    priceUSD: number;         // Price in USD
+    quoteAssetPrice: number;  // Quote asset price
+    blockNumber: string;      // Latest block number
+  }
+}
+```
+
+### Example Response
+
+```json
+{
+  "timestamp": 1733173907000,
+  "price": 3881.328639607063,
+  "marketDepthUSDUp": 418639.4559697787,
+  "marketDepthUSDDown": 623414.4447679224,
+  "volume24h": 874713.342519723,
+  "baseSymbol": "SWETH",
+  "quoteSymbol": "USD",
+  "extra": {
+    "priceUSD": 3881.328639607063,
+    "quoteAssetPrice": 1,
+    "blockNumber": "21317425"
+  }
+}
+```
+
+## Pricing Methodology
+
+Our pricing methodology uses a weighted average based on market depth and volume for each contract, then re-weights based on contract volume to calculate the final multichain price.
+
+For more details, see our [pricing methodology article](https://mirror.xyz/0x6483Ca5ac1EbC6eB08d36979d217db2572CbAad2/Lw8NSSjqR4JSzthKZQCfHLwD3NPGsuaAfHGMY1zi-WI).
+
+## Adding Assets to Feed (V1)
+
+For V1 subscriptions, you can dynamically add assets to your feed:
+
+```bash
+curl --request GET \
+  --url "https://api.mobula.io/api/1/feed/create?assetId=<assetId>&quoteId=<quoteId>" \
+  --header "Authorization: YOUR_API_KEY" \
+  --header "Content-Type: application/json"
+```
+
+Leave `quoteId` empty to use USD as the default quote currency.
 
 ## Implementation Example
 
@@ -72,21 +145,104 @@ Subscribe to weighted price feed with market depth:
 const socket = new WebSocket("wss://production-feed.mobula.io");
 
 socket.addEventListener("open", () => {
+  // V2 subscription by asset IDs
   socket.send(JSON.stringify({
     type: "feed",
-    authorization: "YOUR_ENTERPRISE_KEY",
-    payload: {
-      kind: "asset_ids",
-      asset_ids: [100004345]
-    }
+    authorization: "YOUR_API_KEY",
+    kind: "asset_ids",
+    asset_ids: [123, 456],
+    quote_id: 456
   }));
 });
 
 socket.addEventListener("message", (event) => {
-  const feed = JSON.parse(event.data);
-  console.log(`Price: $${feed.price}`);
-  console.log(`Market Depth Up: $${feed.marketDepthUSDUp}`);
-  console.log(`Market Depth Down: $${feed.marketDepthUSDDown}`);
-  console.log(`24h Volume: $${feed.volume24h}`);
+  const data = JSON.parse(event.data);
+  
+  // Process price update
+  console.log(`${data.baseSymbol}/${data.quoteSymbol}: $${data.price}`);
+  console.log(`24h Volume: $${data.volume24h}`);
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
 });
 ```
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribing from the Stream
+
+### Unsubscribe by Asset IDs
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "type": "feed",
+    "asset_ids": [123, 456]
+  }
+}
+```
+
+### Unsubscribe by Token Addresses
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "type": "feed",
+    "tokens": [
+      {
+        "blockchain": "solana",
+        "address": "So11111111111111111111111111111111111111112"
+      }
+    ]
+  }
+}
+```
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup>

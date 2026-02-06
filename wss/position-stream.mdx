@@ -4,70 +4,514 @@ asyncapi: "asyncapi.yaml position"
 description: "Real-time WebSocket stream for wallet positions with live P&L tracking"
 ---
 
-<Tip>This endpoint is only available to Growth and Enterprise plans.</Tip>
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
 
 ## Endpoint Details
 
 - **URL**: `wss://api.mobula.io`
 - **Event Type**: `position`
 
-## Quick Start
+## Subscription Format
 
-Track a wallet's position with real-time P&L:
+The `position` endpoint allows you to subscribe to a specific wallet's position for a particular token on a blockchain, providing real-time updates on balance changes, trades, and P&L metrics.
+
+### Subscribe to Wallet Position
 
 ```json
 {
   "type": "position",
   "authorization": "YOUR-API-KEY",
   "payload": {
-    "wallet": "0x1234567890abcdef1234567890abcdef12345678",
-    "token": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+    "wallet": "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437",
+    "token": "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
     "blockchain": "evm:1",
-    "includeFees": true,
+    "subscriptionId": "cupsey-trump-position",
+    "subscriptionTracking": true,
+    "includeFees": false,
     "useSwapRecipient": false
   }
 }
 ```
 
-<Note>
-**Fee Inclusion**: Set `includeFees: true` to include transaction fees in P&L calculations for accurate profit tracking.
+## Parameters
 
-**AA Wallets**: Use `useSwapRecipient: true` for Account Abstraction wallets to track the actual recipient instead of the AA contract.
+- **`wallet`** (required): The wallet address to track. Addresses will be automatically checksummed
+- **`token`** (required): The token contract address. Use `0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE` for native tokens. Addresses will be automatically checksummed
+- **`blockchain`** (optional, default: `"evm:1"`): Blockchain identifier (e.g., `"evm:1"` for Ethereum, `"evm:56"` for BSC, `"solana"` for Solana)
+- **`subscriptionId`** (optional): Custom identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+- **`includeFees`** (optional, default: `false`): If `true`, deducts total fees paid (gas + platform + MEV) from the PnL calculation
+- **`useSwapRecipient`** (optional, default: `false`): If `true`, uses swap recipient tracking mode instead of transaction sender. Useful for tracking wallets that receive tokens from other signers (e.g., trading bots, copy trading)
+
+<Note>
+**Native Token Tracking**: To track native tokens (ETH, BNB, SOL, etc.), use the address `0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE` (42 'E's) as the token address.
 </Note>
 
-## Real-Time P&L Updates
+## Real-Time Updates
 
-You'll receive updates whenever:
-- Position balance changes (buys/sells)
-- Token price changes
-- P&L calculations update
+After subscribing, you'll receive instant updates whenever the wallet's position changes, including:
+- Balance changes
+- New trades (buys/sells)
+- Updated P&L metrics
+- Price movements
 
-## Implementation Example
+### Position Update Response
+
+```json
+{
+  "wallet": "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437",
+  "token": "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
+  "chainId": "evm:1",
+  "balance": 125000.50,
+  "rawBalance": "125000500000000000000000",
+  "amountUSD": 156250.625,
+  "buys": 5,
+  "sells": 2,
+  "volumeBuyToken": 150000.0,
+  "volumeSellToken": 25000.0,
+  "volumeBuy": 187500.0,
+  "volumeSell": 31250.0,
+  "avgBuyPriceUSD": 1.25,
+  "avgSellPriceUSD": 1.25,
+  "realizedPnlUSD": 0.0,
+  "unrealizedPnlUSD": 0.0,
+  "totalPnlUSD": 0.0,
+  "firstDate": "2025-01-15T10:30:00.000Z",
+  "lastDate": "2025-01-20T14:45:00.000Z",
+  "tokenDetails": {
+    "address": "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
+    "chainId": "evm:1",
+    "name": "OFFICIAL TRUMP",
+    "symbol": "TRUMP",
+    "decimals": 18,
+    "logo": "https://example.com/trump-logo.png",
+    "price": 1.25,
+    "priceChange24h": 5.2,
+    "liquidity": 5000000.0,
+    "marketCap": 1250000000.0
+  }
+}
+```
+
+## Data Model
+
+### WalletPositionData
+
+Each position update includes:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `wallet` | `string` | Checksummed wallet address |
+| `token` | `string` | Checksummed token contract address |
+| `chainId` | `ChainId` | Blockchain identifier (e.g., `"evm:1"`) |
+| `balance` | `number` | Current token balance (human-readable) |
+| `rawBalance` | `string` | Raw balance in smallest unit (wei, lamports, etc.) |
+| `amountUSD` | `number` | Current position value in USD |
+| `buys` | `number` | Total number of buy transactions |
+| `sells` | `number` | Total number of sell transactions |
+| `volumeBuyToken` | `number` | Total tokens bought |
+| `volumeSellToken` | `number` | Total tokens sold |
+| `volumeBuy` | `number` | Total USD value of buys |
+| `volumeSell` | `number` | Total USD value of sells |
+| `avgBuyPriceUSD` | `number` | Average buy price in USD |
+| `avgSellPriceUSD` | `number` | Average sell price in USD |
+| `realizedPnlUSD` | `number` | Realized profit/loss from closed positions |
+| `unrealizedPnlUSD` | `number` | Unrealized profit/loss on current holdings |
+| `totalPnlUSD` | `number` | Total P&L (realized + unrealized - fees if includeFees=true) |
+| `totalFeesPaidUSD` | `number \| undefined` | Total fees paid on this position (gas + platform + MEV). Only present when `useSwapRecipient=true` |
+| `firstDate` | `Date \| null` | Date of first transaction |
+| `lastDate` | `Date \| null` | Date of most recent transaction |
+| `tokenDetails` | `TokenDetails \| undefined` | Optional enriched token metadata |
+
+### TokenDetails
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `address` | `string` | Token contract address |
+| `chainId` | `ChainId` | Blockchain identifier |
+| `name` | `string` | Token name |
+| `symbol` | `string` | Token symbol |
+| `decimals` | `number` | Token decimals |
+| `logo` | `string \| null` | Token logo URL |
+| `price` | `number` | Current token price in USD |
+| `priceChange24h` | `number \| null` | 24h price change percentage |
+| `liquidity` | `number \| null` | Total liquidity in USD |
+| `marketCap` | `number \| null` | Market capitalization in USD |
+
+## Use Cases
+
+### 1. Copy Trading Bots
+Monitor positions of successful traders (like Cupsey) and replicate their trades in real-time.
 
 ```typescript
 const socket = new WebSocket("wss://api.mobula.io");
 
 socket.addEventListener("open", () => {
+  // Track Cupsey's TRUMP position
   socket.send(JSON.stringify({
     type: "position",
     authorization: "YOUR_API_KEY",
     payload: {
-      wallet: "0x1234567890abcdef1234567890abcdef12345678",
-      token: "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
+      wallet: "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437",
+      token: "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
       blockchain: "evm:1",
-      includeFees: true
+      subscriptionTracking: true
     }
   }));
 });
 
 socket.addEventListener("message", (event) => {
   const position = JSON.parse(event.data);
-  console.log(`Balance: ${position.balance}`);
-  console.log(`Value: $${position.amountUSD}`);
-  console.log(`Total P&L: $${position.totalPnlUSD}`);
-  console.log(`Realized: $${position.realizedPnlUSD}`);
-  console.log(`Unrealized: $${position.unrealizedPnlUSD}`);
+  
+  // Execute copy trading logic
+  if (position.buys > previousBuys) {
+    console.log("🟢 Cupsey bought TRUMP!");
+    executeCopyTrade("buy", position);
+  } else if (position.sells > previousSells) {
+    console.log("🔴 Cupsey sold TRUMP!");
+    executeCopyTrade("sell", position);
+  }
 });
 ```
 
-<Tip>Track multiple positions by maintaining separate WebSocket connections or using the `positions` stream for bulk monitoring.</Tip>
+### 2. Portfolio Tracking
+Track your own positions across multiple wallets and tokens.
+
+```typescript
+const positions = [
+  { wallet: "YOUR_WALLET", token: "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7", blockchain: "evm:1" }, // TRUMP
+  { wallet: "YOUR_WALLET", token: "0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE", blockchain: "evm:1" }, // ETH
+  { wallet: "YOUR_WALLET", token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", blockchain: "evm:1" }, // USDC
+];
+
+positions.forEach((pos) => {
+  socket.send(JSON.stringify({
+    type: "position",
+    authorization: "YOUR_API_KEY",
+    payload: pos
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const position = JSON.parse(event.data);
+  updatePortfolioDashboard(position);
+  
+  // Real-time P&L tracking
+  console.log(`${position.tokenDetails.symbol}: $${position.totalPnlUSD.toFixed(2)} P&L`);
+});
+```
+
+### 3. Whale Watching
+Monitor whale wallets for significant position changes.
+
+```typescript
+const whaleWallets = [
+  "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437", // Cupsey
+  "0x28C6c06298d514Db089934071355E5743bf21d60", // Binance 14
+  "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb", // Jump Trading
+];
+
+whaleWallets.forEach((whale) => {
+  socket.send(JSON.stringify({
+    type: "position",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      wallet: whale,
+      token: "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7", // TRUMP
+      blockchain: "evm:1"
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const position = JSON.parse(event.data);
+  
+  // Alert on large trades
+  if (position.amountUSD > 100000) {
+    sendAlert(`🐋 Whale alert: ${position.wallet} has $${position.amountUSD.toLocaleString()} in ${position.tokenDetails.symbol}`);
+  }
+});
+```
+
+## Implementation Example
+
+### TypeScript/JavaScript
+
+```typescript
+import WebSocket from 'ws';
+
+const socket = new WebSocket("wss://api.mobula.io");
+
+socket.addEventListener("open", () => {
+  console.log("✅ Connected to Mobula Position Stream");
+  
+  // Subscribe to Cupsey's TRUMP position
+  socket.send(JSON.stringify({
+    type: "position",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      wallet: "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437",
+      token: "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
+      blockchain: "evm:1",
+      subscriptionId: "cupsey-trump",
+      subscriptionTracking: true
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const position = JSON.parse(event.data);
+  
+  console.log("📊 Position Update:");
+  console.log(`  Token: ${position.tokenDetails?.symbol}`);
+  console.log(`  Balance: ${position.balance.toLocaleString()} tokens`);
+  console.log(`  Value: $${position.amountUSD.toLocaleString()}`);
+  console.log(`  Total P&L: $${position.totalPnlUSD.toFixed(2)}`);
+  console.log(`  Unrealized P&L: $${position.unrealizedPnlUSD.toFixed(2)}`);
+  console.log(`  Avg Buy Price: $${position.avgBuyPriceUSD.toFixed(4)}`);
+  console.log(`  Total Buys: ${position.buys}`);
+  console.log(`  Total Sells: ${position.sells}`);
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("❌ WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("🔌 WebSocket connection closed");
+});
+```
+
+### Python
+
+```python
+import websocket
+import json
+
+def on_message(ws, message):
+    position = json.loads(message)
+    
+    print("📊 Position Update:")
+    print(f"  Token: {position['tokenDetails']['symbol']}")
+    print(f"  Balance: {position['balance']:,.2f} tokens")
+    print(f"  Value: ${position['amountUSD']:,.2f}")
+    print(f"  Total P&L: ${position['totalPnlUSD']:,.2f}")
+    print(f"  Unrealized P&L: ${position['unrealizedPnlUSD']:,.2f}")
+
+def on_open(ws):
+    print("✅ Connected to Mobula Position Stream")
+    
+    subscription = {
+        "type": "position",
+        "authorization": "YOUR_API_KEY",
+        "payload": {
+            "wallet": "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437",
+            "token": "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
+            "blockchain": "evm:1",
+            "subscriptionId": "cupsey-trump",
+            "subscriptionTracking": True
+        }
+    }
+    
+    ws.send(json.dumps(subscription))
+
+ws = websocket.WebSocketApp(
+    "wss://api.mobula.io",
+    on_message=on_message,
+    on_open=on_open
+)
+
+ws.run_forever()
+```
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Position Streams
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "position"
+  }
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "subscriptionId": "cupsey-trump"
+  }
+}
+```
+
+### Unsubscribe from Specific Position
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR-API-KEY",
+  "payload": {
+    "type": "position",
+    "wallet": "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437",
+    "token": "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7",
+    "blockchain": "evm:1"
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+</Note>
+
+## Best Practices
+
+### 1. Connection Management
+- Implement automatic reconnection logic with exponential backoff
+- Handle WebSocket close events gracefully
+- Ping/pong to keep connection alive
+
+### 2. Rate Limiting
+- Subscribe to a reasonable number of positions per connection
+- Use multiple connections for high-volume monitoring
+- Batch subscriptions when possible
+
+### 3. Error Handling
+```typescript
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+  // Implement retry logic
+  setTimeout(() => reconnect(), 5000);
+});
+
+socket.addEventListener("close", (event) => {
+  if (event.code !== 1000) { // 1000 = normal closure
+    console.log("Abnormal closure, reconnecting...");
+    reconnect();
+  }
+});
+```
+
+### 4. Data Validation
+Always validate incoming data before processing:
+
+```typescript
+interface WalletPositionData {
+  wallet: string;
+  token: string;
+  chainId: string;
+  balance: number;
+  amountUSD: number;
+  totalPnlUSD: number;
+  // ... other fields
+}
+
+socket.addEventListener("message", (event) => {
+  try {
+    const position: WalletPositionData = JSON.parse(event.data);
+    
+    if (!position.wallet || !position.token) {
+      throw new Error("Invalid position data");
+    }
+    
+    processPosition(position);
+  } catch (error) {
+    console.error("Failed to process position update:", error);
+  }
+});
+```
+
+## Example: Multi-Wallet Position Dashboard
+
+```typescript
+const socket = new WebSocket("wss://api.mobula.io");
+const positions = new Map<string, WalletPositionData>();
+
+socket.addEventListener("open", () => {
+  // Track multiple wallets and tokens
+  const subscriptions = [
+    { wallet: "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437", token: "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7", blockchain: "evm:1" }, // Cupsey - TRUMP
+    { wallet: "0x1AFCADB658BcBC1c17ab4E663FFADA24B5aCF437", token: "0xEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE", blockchain: "evm:1" }, // Cupsey - ETH
+    { wallet: "YOUR_WALLET", token: "0x576e2BeD8F7b46D34016198911Cdf9886f78bea7", blockchain: "evm:1" }, // Your - TRUMP
+  ];
+  
+  subscriptions.forEach((sub, index) => {
+    socket.send(JSON.stringify({
+      type: "position",
+      authorization: "YOUR_API_KEY",
+      payload: {
+        ...sub,
+        subscriptionId: `position-${index}`,
+        subscriptionTracking: true
+      }
+    }));
+  });
+});
+
+socket.addEventListener("message", (event) => {
+  const position = JSON.parse(event.data);
+  const key = `${position.wallet}-${position.token}-${position.chainId}`;
+  
+  positions.set(key, position);
+  
+  // Calculate total portfolio value
+  let totalValue = 0;
+  let totalPnl = 0;
+  
+  positions.forEach((pos) => {
+    totalValue += pos.amountUSD;
+    totalPnl += pos.totalPnlUSD;
+  });
+  
+  console.log("\n📊 Portfolio Summary:");
+  console.log(`  Total Value: $${totalValue.toLocaleString()}`);
+  console.log(`  Total P&L: $${totalPnl.toFixed(2)}`);
+  console.log(`  Positions: ${positions.size}`);
+});
+```
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+</CardGroup>
+

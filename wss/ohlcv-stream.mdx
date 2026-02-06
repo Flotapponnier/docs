@@ -1,68 +1,250 @@
 ---
 title: "OHLCV Stream"
 asyncapi: "asyncapi.yaml ohlcv"
-description: "Real-time WebSocket stream for OHLCV candlestick data"
+description: "Real-time WebSocket stream for retrieving OHLCV (candlestick) data for any asset"
 ---
 
-<Tip>This endpoint is available on all plans including Free tier.</Tip>
+<Tip> This endpoint is only available to Growth and Enterprise plans. </Tip>
+
 
 ## Endpoint Details
 
 - **URL**: `wss://api.mobula.io`
 - **Event Type**: `ohlcv`
 
-## Quick Start
+### Pool Mode Subscription
 
-Subscribe to candlestick data for any asset:
+Subscribe to OHLCV data for a specific pool (mode automatically set to `"pair"`):
 
 ```json
 {
   "type": "ohlcv",
-  "authorization": "YOUR-API-KEY",
+  "authorization": "YOUR_API_KEY",
   "payload": {
-    "address": "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
-    "blockchain": "evm:1",
-    "period": "5m",
-    "mode": "asset"
+    "address": "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640",
+    "chainId": "evm:1",
+    "period": "1h",
+    "subscriptionTracking": true
   }
 }
 ```
 
-## Supported Periods
+### Asset Mode Subscription
 
-- `1m` - 1 minute candles
-- `5m` - 5 minute candles
-- `15m` - 15 minute candles
-- `1h` - 1 hour candles
-- `4h` - 4 hour candles
-- `1d` - 1 day candles
+Subscribe to OHLCV data for a specific token (mode automatically set to `"asset"`):
 
-<Note>
-**Mode Selection**:
-- `asset`: Token-based candlesticks (aggregated across all pools)
-- `pair`: Pool-specific candlesticks
-</Note>
+```json
+{
+  "type": "ohlcv",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "asset": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+    "chainId": "evm:1",
+    "period": "1h",
+    "subscriptionTracking": true
+  }
+}
+```
+
+## Parameters
+
+- **`address`** (conditional): Pool address for pool mode - required if not using `asset`
+- **`asset`** (conditional): Token address for asset mode - required if not using `address`
+- **`chainId`** (required): Blockchain identifier - [See supported chains](/blockchains/intro-blockchains)
+- **`period`** (required): Candlestick timeframe - `1s`, `5s`, `15s`, `30s`, `1m`, `5m`, `15m`, `1h`, `4h`, `1d`, `1w`, `1M`
+  - Accepted aliases: `1min` or `1` for `1m`, `5min` or `5` for `5m`, `15min` or `15` for `15m`, `60` for `1h`, `1month` for `1M`
+- **`mode`** (optional): Aggregation mode - `pair` or `asset`. Auto-populated based on your query (see below)
+- **`subscriptionId`** (optional): Unique identifier for your WebSocket connection. Auto-generated if not provided
+- **`subscriptionTracking`** (optional, default: `false`): Include subscription details in response logs for debugging
+
+### Understanding the `mode` Parameter
+
+The `mode` parameter determines how OHLCV data is aggregated and sent:
+
+**Pool Mode (`mode: "pair"`):**
+- **Default when:** Using `address` parameter
+- **Data scope:** Only trades from the specific pool/pair you subscribed to
+- **Use case:** Track a specific trading venue (e.g., Uniswap V3 USDC/ETH pool)
+- **Updates:** Real-time updates for that single market only
+
+**Asset Mode (`mode: "asset"`):**
+- **Default when:** Using `asset` parameter
+- **Data scope:** Aggregated data from the top trading venues for that token
+- **Use case:** Track overall token price action across all major liquidity sources
+- **Updates:** Real-time updates from multiple pools, filtered to the largest pairs (up to 10 venues)
+- **Aggregation:** OHLCV data combines trades from all qualifying pools where the token appears
+
+<Tip>
+The `mode` is automatically set based on your subscription:
+- Use `address` → mode defaults to `"pair"`
+- Use `asset` → mode defaults to `"asset"`
+
+You can manually override the mode if needed, but the default behavior handles most use cases.
+</Tip>
+
+<Note>You can use either **pool mode** (with `address`) or **asset mode** (with `asset`), but not both simultaneously.</Note>
+
 
 ## Implementation Example
+
+**Pool Mode Example (Single Trading Pair):**
 
 ```typescript
 const socket = new WebSocket("wss://api.mobula.io");
 
 socket.addEventListener("open", () => {
+  // Subscribe to a specific Uniswap V3 pool
   socket.send(JSON.stringify({
     type: "ohlcv",
     authorization: "YOUR_API_KEY",
     payload: {
-      address: "0xA0b86a33E6441e88C5F2712C3E9b74B6F3B5C8b6",
-      blockchain: "evm:1",
-      period: "5m",
-      mode: "asset"
+      address: "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640",
+      chainId: "evm:1",
+      period: "1h",
+      subscriptionTracking: true
+      // mode: "pair" is automatically set
     }
   }));
 });
 
 socket.addEventListener("message", (event) => {
-  const candle = JSON.parse(event.data);
-  console.log(`OHLCV: O=${candle.open} H=${candle.high} L=${candle.low} C=${candle.close}`);
+  const data = JSON.parse(event.data);
+  
+  // Process OHLCV data from this specific pool
+  console.log("Pool OHLCV update:", data);
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
 });
 ```
+
+**Asset Mode Example (Aggregated Across Multiple Venues):**
+
+```typescript
+const socket = new WebSocket("wss://production-api.mobula.io");
+
+socket.addEventListener("open", () => {
+  // Subscribe to WETH across all major trading venues
+  socket.send(JSON.stringify({
+    type: "ohlcv",
+    authorization: "YOUR_API_KEY",
+    payload: {
+      asset: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
+      chainId: "evm:1",
+      period: "1h",
+      subscriptionTracking: true
+      // mode: "asset" is automatically set
+    }
+  }));
+});
+
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Process aggregated OHLCV data from top 10 pools for this token
+  console.log("Asset OHLCV update:", data);
+});
+
+socket.addEventListener("error", (error) => {
+  console.error("WebSocket error:", error);
+});
+
+socket.addEventListener("close", () => {
+  console.log("WebSocket connection closed");
+});
+```
+
+<Tip>You can use the Network tab in your browser to see the WebSocket requests and responses in real-time.</Tip>
+
+## Connection Keepalive (Ping/Pong)
+
+To maintain active WebSocket connections and prevent timeouts, you can use the ping/pong mechanism:
+
+**Send ping:**
+```json
+{"event":"ping"}
+```
+
+**Receive pong:**
+The server will respond with a pong message to confirm the connection is active.
+
+<Tip>Use ping messages periodically (every 30-60 seconds) to keep long-lived connections alive.</Tip>
+
+## Unsubscribing from the Stream
+
+### Unsubscribe from All Streams
+
+To terminate all active subscriptions on the current WebSocket connection:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {}
+}
+```
+
+### Unsubscribe from Specific Subscription
+
+To unsubscribe from a specific subscription using its ID:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "subscriptionId": "your-subscription-id"
+  }
+}
+```
+
+### Unsubscribe from All OHLCV Streams
+
+To unsubscribe from all OHLCV streams while keeping other stream types active:
+
+```json
+{
+  "type": "unsubscribe",
+  "authorization": "YOUR_API_KEY",
+  "payload": {
+    "type": "ohlcv"
+  }
+}
+```
+
+<Note>
+If you didn't provide a `subscriptionId` when subscribing, one is auto-generated. To retrieve it, set `"subscriptionTracking": true` in the subscription payload.
+</Note>
+
+## Support
+
+Can't find what you're looking for? Reach out to us, response times < 1h.
+
+<CardGroup>
+
+<Card
+  title="Support"
+  icon="Telegram"
+  href="https://t.me/mobuladevelopers?start=Mobula_API_Support_Key"
+>
+  Telegram
+</Card>
+
+<Card
+  title="Support"
+  icon="Slack"
+  href="https://join.slack.com/t/mobulaapi/shared_invite/zt-29zrrpjnl-I0tyD73sy7zKy8q~KLL3Ug"
+>
+  Slack
+</Card>
+
+<Card title="Need help?" icon="envelope" href="mailto:contact@mobulalabs.org">
+  Email
+</Card>
+
+</CardGroup>
