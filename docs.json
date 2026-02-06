@@ -76,11 +76,7 @@
         "tab": "WebSocket API (Test)",
         "groups": [
           {
-            "group": "API Reference (Auto-generated)",
-            "asyncapi": "asyncapi.yaml"
-          },
-          {
-            "group": "Guides & Examples",
+            "group": "WebSocket Streams",
             "pages": [
               "wss/fast-trades",
               "wss/ohlcv-stream",
