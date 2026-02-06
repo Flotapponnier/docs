@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Mobula WebSocket API
   version: 1.0.0
-  description: Real-time WebSocket streams for market data and trades
+  description: Real-time WebSocket streams for market data, trades, and analytics
 
 servers:
   production:
@@ -20,15 +20,75 @@ channels:
           properties:
             pair:
               type: string
-              description: Trading pair
-            price:
+              description: Trading pair identifier
+            date:
               type: number
-              description: Trade price
+              description: Trade timestamp
+            tokenPrice:
+              type: number
+              description: Token price at time of trade
+            tokenAmount:
+              type: number
+              description: Amount of base token traded
             type:
               type: string
               enum: [buy, sell]
-              description: Trade type
-    description: Real-time trade updates
+              description: Trade direction
+            blockchain:
+              type: string
+              description: Blockchain where trade occurred
+            hash:
+              type: string
+              description: Transaction hash
+    description: Real-time trade updates for multiple pools and tokens
+
+  ohlcv:
+    address: /
+    messages:
+      ohlcvMessage:
+        payload:
+          type: object
+          properties:
+            high:
+              type: number
+              description: Highest price in period
+            low:
+              type: number
+              description: Lowest price in period
+            open:
+              type: number
+              description: Opening price
+            close:
+              type: number
+              description: Closing price
+            volume:
+              type: number
+              description: Trading volume in period
+            time:
+              type: number
+              description: Candle timestamp
+            period:
+              type: string
+              description: Candle period (1m, 5m, 15m, 1h, 1d)
+    description: Real-time OHLCV candlestick data for any asset
+
+  marketDetails:
+    address: /
+    messages:
+      marketMessage:
+        payload:
+          type: object
+          properties:
+            liquidity:
+              type: number
+              description: Pool liquidity in USD
+            volume24h:
+              type: number
+              description: 24h trading volume
+            priceChange24h:
+              type: number
+              description: 24h price change percentage
+    description: Real-time market updates with enriched data
 
 operations:
   receiveTrades:
@@ -37,3 +97,17 @@ operations:
       $ref: '#/channels/fastTrades'
     messages:
       - $ref: '#/channels/fastTrades/messages/tradeMessage'
+
+  receiveOHLCV:
+    action: receive
+    channel:
+      $ref: '#/channels/ohlcv'
+    messages:
+      - $ref: '#/channels/ohlcv/messages/ohlcvMessage'
+
+  receiveMarketDetails:
+    action: receive
+    channel:
+      $ref: '#/channels/marketDetails'
+    messages:
+      - $ref: '#/channels/marketDetails/messages/marketMessage'
