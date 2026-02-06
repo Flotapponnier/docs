@@ -2,15 +2,36 @@ asyncapi: 3.0.0
 info:
   title: Mobula WebSocket API
   version: 1.0.0
-  description: Real-time WebSocket streams for market data, trades, and analytics
+  description: Real-time WebSocket streams for market data, trades, positions, and token analytics
 
 servers:
   production:
     host: api.mobula.io
     protocol: wss
-    description: Production WebSocket server
+    description: Main WebSocket endpoint for most streams
+  priceFeed:
+    host: production-feed.mobula.io
+    protocol: wss
+    description: Dedicated price feed endpoint (Enterprise only)
+  evmStream:
+    host: stream-evm-prod.mobula.io
+    protocol: wss
+    description: EVM chains multi-events stream
+  solanaStream:
+    host: stream-sol-prod.mobula.io
+    protocol: wss
+    description: Solana chains multi-events stream
 
 channels:
+  multiEventsStream:
+    address: /
+    messages:
+      eventMessage:
+        payload:
+          type: object
+          description: Raw blockchain events (swaps, transfers) with optional enrichment
+    description: Real-time stream for raw and curated events (Swaps, Transfers) across EVM and Solana chains
+
   fastTrades:
     address: /
     messages:
@@ -21,6 +42,9 @@ channels:
             pair:
               type: string
               description: Trading pair identifier
+            token:
+              type: string
+              description: Token identifier (when assetMode is true)
             date:
               type: number
               description: Trade timestamp
@@ -30,6 +54,9 @@ channels:
             tokenAmount:
               type: number
               description: Amount of base token traded
+            tokenAmountUsd:
+              type: number
+              description: Trade value in USD
             type:
               type: string
               enum: [buy, sell]
@@ -40,7 +67,13 @@ channels:
             hash:
               type: string
               description: Transaction hash
-    description: Real-time trade updates for multiple pools and tokens
+            sender:
+              type: string
+              description: Wallet address that initiated the trade
+            totalFeesUSD:
+              type: number
+              description: Total fees in USD
+    description: Real-time WebSocket stream for trades on multiple pools and tokens
 
   ohlcv:
     address: /
@@ -69,8 +102,32 @@ channels:
               description: Candle timestamp
             period:
               type: string
-              description: Candle period (1m, 5m, 15m, 1h, 1d)
-    description: Real-time OHLCV candlestick data for any asset
+              description: Candle period (1m, 5m, 15m, 1h, 1d, etc.)
+    description: Real-time WebSocket stream for OHLCV (candlestick) data for any asset
+
+  priceFeed:
+    address: /
+    messages:
+      priceMessage:
+        payload:
+          type: object
+          properties:
+            timestamp:
+              type: number
+              description: Price update timestamp
+            price:
+              type: number
+              description: Weighted price
+            marketDepthUSDUp:
+              type: number
+              description: Market depth USD upwards
+            marketDepthUSDDown:
+              type: number
+              description: Market depth USD downwards
+            volume24h:
+              type: number
+              description: 24h trading volume
+    description: Real-time price feed weighted by volume and market depth (Enterprise only)
 
   marketDetails:
     address: /
@@ -78,36 +135,159 @@ channels:
       marketMessage:
         payload:
           type: object
+          description: Enriched market pool data with metrics and analytics
+    description: Real-time WebSocket stream for market pools with enriched data
+
+  tokenDetails:
+    address: /
+    messages:
+      tokenMessage:
+        payload:
+          type: object
+          description: Enriched token data with price, volume, and market metrics
+    description: Real-time WebSocket stream for multiple tokens with enriched market data
+
+  position:
+    address: /
+    messages:
+      positionMessage:
+        payload:
+          type: object
           properties:
-            liquidity:
+            wallet:
+              type: string
+              description: Wallet address
+            token:
+              type: string
+              description: Token address
+            balance:
               type: number
-              description: Pool liquidity in USD
-            volume24h:
+              description: Token balance
+            amountUSD:
               type: number
-              description: 24h trading volume
-            priceChange24h:
+              description: Position value in USD
+            totalPnlUSD:
               type: number
-              description: 24h price change percentage
-    description: Real-time market updates with enriched data
+              description: Total profit/loss in USD
+    description: Real-time WebSocket stream for wallet positions with live P&L tracking
+
+  positions:
+    address: /
+    messages:
+      positionsMessage:
+        payload:
+          type: object
+          properties:
+            wallet:
+              type: string
+              description: Wallet address
+            positions:
+              type: array
+              description: Array of all positions
+    description: Real-time WebSocket stream for all positions of a wallet with automatic updates
+
+  holders:
+    address: /
+    messages:
+      holdersMessage:
+        payload:
+          type: object
+          properties:
+            holdersCount:
+              type: number
+              description: Total number of token holders
+            top10HoldingsPercentage:
+              type: number
+              description: Percentage held by top 10 holders
+            holders:
+              type: array
+              description: Detailed holder information
+    description: Real-time WebSocket stream for monitoring token holder analytics and distribution data
+
+  funding:
+    address: /
+    messages:
+      fundingMessage:
+        payload:
+          type: object
+          description: Real-time funding rates across supported exchanges
+    description: Real-time WebSocket stream for funding rates across supported exchanges
+
+  pulseV2:
+    address: /
+    messages:
+      pulseMessage:
+        payload:
+          type: object
+          description: Advanced token monitoring with customizable views and real-time metrics
+    description: Advanced WebSocket stream for real-time token monitoring with multiple views
+
+  pulseV2PoolBased:
+    address: /
+    messages:
+      pulsePoolMessage:
+        payload:
+          type: object
+          description: Advanced pool monitoring with customizable views and real-time metrics
+    description: Advanced WebSocket stream for real-time pool monitoring with pool-based subscriptions
 
 operations:
+  receiveMultiEvents:
+    action: receive
+    channel:
+      $ref: '#/channels/multiEventsStream'
+
   receiveTrades:
     action: receive
     channel:
       $ref: '#/channels/fastTrades'
-    messages:
-      - $ref: '#/channels/fastTrades/messages/tradeMessage'
 
   receiveOHLCV:
     action: receive
     channel:
       $ref: '#/channels/ohlcv'
-    messages:
-      - $ref: '#/channels/ohlcv/messages/ohlcvMessage'
+
+  receivePriceFeed:
+    action: receive
+    channel:
+      $ref: '#/channels/priceFeed'
 
   receiveMarketDetails:
     action: receive
     channel:
       $ref: '#/channels/marketDetails'
-    messages:
-      - $ref: '#/channels/marketDetails/messages/marketMessage'
+
+  receiveTokenDetails:
+    action: receive
+    channel:
+      $ref: '#/channels/tokenDetails'
+
+  receivePosition:
+    action: receive
+    channel:
+      $ref: '#/channels/position'
+
+  receivePositions:
+    action: receive
+    channel:
+      $ref: '#/channels/positions'
+
+  receiveHolders:
+    action: receive
+    channel:
+      $ref: '#/channels/holders'
+
+  receiveFunding:
+    action: receive
+    channel:
+      $ref: '#/channels/funding'
+
+  receivePulseV2:
+    action: receive
+    channel:
+      $ref: '#/channels/pulseV2'
+
+  receivePulseV2PoolBased:
+    action: receive
+    channel:
+      $ref: '#/channels/pulseV2PoolBased'
